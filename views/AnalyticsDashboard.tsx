@@ -108,29 +108,23 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
         <div className="space-y-6 md:space-y-8">
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                {data.kpis && data.kpis.length > 0 ? (
-                    data.kpis.map((kpi, idx) => (
-                        <div key={idx} className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 hover:shadow-md transition-shadow">
-                            <div className="flex justify-between items-start mb-2">
-                                <p className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{kpi.label}</p>
-                                {kpi.trend && (
-                                    <span className={`flex items-center text-xs font-bold px-2 py-1 rounded-full ${
-                                        kpi.trend === 'up' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 
-                                        kpi.trend === 'down' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                                    }`}>
-                                        {kpi.trend === 'up' ? <TrendingUp size={12} className="mr-1"/> : <TrendingDown size={12} className="mr-1"/>}
-                                        {kpi.change}
-                                    </span>
-                                )}
-                            </div>
-                            <h3 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white">{kpi.value}</h3>
+                {data.kpis.map((kpi, idx) => (
+                    <div key={idx} className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start mb-2">
+                            <p className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{kpi.label}</p>
+                            {kpi.trend && (
+                                <span className={`flex items-center text-xs font-bold px-2 py-1 rounded-full ${
+                                    kpi.trend === 'up' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 
+                                    kpi.trend === 'down' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                }`}>
+                                    {kpi.trend === 'up' ? <TrendingUp size={12} className="mr-1"/> : <TrendingDown size={12} className="mr-1"/>}
+                                    {kpi.change}
+                                </span>
+                            )}
                         </div>
-                    ))
-                ) : (
-                    <div className="col-span-full text-center py-8 text-slate-500 dark:text-slate-400">
-                        No KPI data available
+                        <h3 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white">{kpi.value}</h3>
                     </div>
-                )}
+                ))}
             </div>
 
             {/* Top Row: Executive Summary & Strategic Advisor */}

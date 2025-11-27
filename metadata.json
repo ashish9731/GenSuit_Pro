@@ -1,0 +1,7 @@
+{
+  "name": "GenSuite Pro",
+  "description": "An all-in-one AI productivity suite featuring Email Drafting, Data Analytics, Document Chat, and Prompt Engineering Education.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

@@ -16,49 +16,55 @@ export const generateEmailDraft = async (
   enhance: boolean,
   context?: string
 ): Promise<string> => {
-  const model = ai.getGenerativeModel({ model: "gemini-2.5-flash" });
-  
-  let userInstruction = prompt;
-  if (enhance) {
-    // We enhance the PROMPT itself first, to make sure the input to the generator is high quality
-    userInstruction = `Refine this request into a detailed prompt for an AI writer. The goal is to produce a professional, high-stakes email. Original request: "${prompt}"`;
-  }
-
-  // The "Mega Prompt" structure for the Executive Persona
-  const finalPrompt = `
-    ROLE: You are a World-Class Executive Communications Director. You write emails that get results. Your tone is confident, clear, and empathetic.
+  try {
+    const model = ai.getGenerativeModel({ model: "gemini-2.5-flash" });
     
-    TASK: Write an email based on the following request:
-    "${userInstruction}"
-    ${context ? `ADDITIONAL CONTEXT: ${context}` : ''}
+    let userInstruction = prompt;
+    if (enhance) {
+      // We enhance the PROMPT itself first, to make sure the input to the generator is high quality
+      userInstruction = `Refine this request into a detailed prompt for an AI writer. The goal is to produce a professional, high-stakes email. Original request: "${prompt}"`;
+    }
 
-    STRICT OUTPUT RULES:
-    1. **Structure**: 
-       - Subject Line: Compelling and concise (max 7 words).
-       - Opening: Warm, professional, and context-aware.
-       - Body: Use specific details. If listing items, use BULLET POINTS for readability.
-       - CTA: A clear, direct Call to Action (e.g., "Let's discuss on Tuesday at 2 PM").
-       - Sign-off: Professional closing.
+    // The "Mega Prompt" structure for the Executive Persona
+    const finalPrompt = `
+      ROLE: You are a World-Class Executive Communications Director. You write emails that get results. Your tone is confident, clear, and empathetic.
+      
+      TASK: Write an email based on the following request:
+      "${userInstruction}"
+      ${context ? `ADDITIONAL CONTEXT: ${context}` : ''}
 
-    2. **Anti-Hallucination**: 
-       - Do NOT invent names, dates, or financial figures if they are not in the prompt. 
-       - Use bracketed placeholders like [Name], [Date], [Company Name] if you are missing specific details.
-       - Double-check the content for logical consistency.
+      STRICT OUTPUT RULES:
+      1. **Structure**: 
+         - Subject Line: Compelling and concise (max 7 words).
+         - Opening: Warm, professional, and context-aware.
+         - Body: Use specific details. If listing items, use BULLET POINTS for readability.
+         - CTA: A clear, direct Call to Action (e.g., "Let's discuss on Tuesday at 2 PM").
+         - Sign-off: Professional closing.
 
-    3. **Psychology**:
-       - If the user asks for money/sales: Use persuasive, benefit-driven language.
-       - If the user is apologizing: Be sincere, non-defensive, and solution-oriented.
-       - If the user is following up: Be polite but persistent, adding value.
+      2. **Anti-Hallucination**: 
+         - Do NOT invent names, dates, or financial figures if they are not in the prompt. 
+         - Use bracketed placeholders like [Name], [Date], [Company Name] if you are missing specific details.
+         - Double-check the content for logical consistency.
 
-    Output ONLY the email content. Start with "Subject:".
-  `;
+      3. **Psychology**:
+         - If the user asks for money/sales: Use persuasive, benefit-driven language.
+         - If the user is apologizing: Be sincere, non-defensive, and solution-oriented.
+         - If the user is following up: Be polite but persistent, adding value.
 
-  const result = await model.generateContent(finalPrompt);
-  const response = await result.response;
-  return response.text() || "";
+      Output ONLY the email content. Start with "Subject:".
+    `;
+
+    const result = await model.generateContent(finalPrompt);
+    const response = await result.response;
+    return response.text() || "Unable to generate email draft.";
+  } catch (error) {
+    console.error("Email generation error:", error);
+    return "Sorry, I encountered an error while generating your email. Please try again.";
+  }
 };
 
 export const enhanceUserPrompt = async (rawPrompt: string): Promise<string> => {
+  try {
     const model = ai.getGenerativeModel({ model: "gemini-2.5-flash" });
     const response = await model.generateContent(`You are an expert Prompt Engineer. Rewrite the following user draft request into a structured, highly detailed prompt that will ensure a perfect AI generation.
         
@@ -73,6 +79,10 @@ export const enhanceUserPrompt = async (rawPrompt: string): Promise<string> => {
         Return ONLY the enhanced prompt text.`);
     const result = await response.response;
     return result.text() || rawPrompt;
+  } catch (error) {
+    console.error("Prompt enhancement error:", error);
+    return rawPrompt;
+  }
 }
 
 // --- Analytics Service ---
@@ -175,17 +185,55 @@ export const analyzeSalesData = async (dataSample: string): Promise<AnalyticsRep
         // Robust cleanup: sometimes models wrap JSON in code blocks
         let cleanText = response.text().trim();
         if (cleanText.startsWith('```json')) {
-            cleanText = cleanText.replace(/^```json/, '').replace(/```$/, '');
+          cleanText = cleanText.replace(/^```json/, '').replace(/```$/, '');
         } else if (cleanText.startsWith('```')) {
-            cleanText = cleanText.replace(/^``/, '').replace(/```$/, '');
+          cleanText = cleanText.replace(/^``/, '').replace(/```$/, '');
         }
-        return JSON.parse(cleanText) as AnalyticsReport;
+        
+        const parsedData = JSON.parse(cleanText) as AnalyticsReport;
+        
+        // Ensure all required fields are present with default empty values
+        const safeData: AnalyticsReport = {
+          kpis: Array.isArray(parsedData.kpis) ? parsedData.kpis : [],
+          dailySummary: typeof parsedData.dailySummary === 'string' ? parsedData.dailySummary : "No data available",
+          weeklySummary: typeof parsedData.weeklySummary === 'string' ? parsedData.weeklySummary : "No data available",
+          monthlySummary: typeof parsedData.monthlySummary === 'string' ? parsedData.monthlySummary : "No data available",
+          strategicRecommendations: Array.isArray(parsedData.strategicRecommendations) ? parsedData.strategicRecommendations : [],
+          forecast: typeof parsedData.forecast === 'string' ? parsedData.forecast : "No forecast available",
+          revenueTrend: Array.isArray(parsedData.revenueTrend) ? parsedData.revenueTrend : [],
+          productDistribution: Array.isArray(parsedData.productDistribution) ? parsedData.productDistribution : [],
+          personnelAnalysis: Array.isArray(parsedData.personnelAnalysis) ? parsedData.personnelAnalysis : []
+        };
+        
+        return safeData;
       } catch (e) {
         console.error("JSON Parse Error:", e);
-        throw new Error("The AI analysis could not be processed. Please check your data file format.");
+        // Return a safe default structure when parsing fails
+        return {
+          kpis: [],
+          dailySummary: "Unable to analyze data",
+          weeklySummary: "Unable to analyze data",
+          monthlySummary: "Unable to analyze data",
+          strategicRecommendations: [],
+          forecast: "Unable to generate forecast",
+          revenueTrend: [],
+          productDistribution: [],
+          personnelAnalysis: []
+        };
       }
   }
-  throw new Error("Failed to generate analytics");
+  // Return a safe default structure when no response text is available
+  return {
+    kpis: [],
+    dailySummary: "No response from AI",
+    weeklySummary: "No response from AI",
+    monthlySummary: "No response from AI",
+    strategicRecommendations: [],
+    forecast: "No forecast available",
+    revenueTrend: [],
+    productDistribution: [],
+    personnelAnalysis: []
+  };
 };
 
 // --- Chat Service ---
@@ -195,26 +243,31 @@ export const chatWithDocument = async (
   message: string,
   documentContext: string
 ): Promise<string> => {
-  // Pass system instruction when getting the model
-  const model = ai.getGenerativeModel({
-    model: "gemini-2.5-flash",
-    systemInstruction: `You are a helpful assistant analyzing a specific document provided by the user. 
-        
-        RULES:
-        1. Answer ONLY based on the provided document context.
-        2. STRICTLY REFUSE to answer questions about software development, coding, or programming.
-        3. STRICTLY REFUSE to discuss topics not found in the document.
-        4. If the user asks for code, say "I cannot assist with software development tasks."
-        
-        DOCUMENT CONTEXT:
-        ${documentContext.substring(0, 50000)}`
-  });
-  
-  const chat = model.startChat({
-    history: history
-  });
+  try {
+    // Pass system instruction when getting the model
+    const model = ai.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: `You are a helpful assistant analyzing a specific document provided by the user. 
+          
+          RULES:
+          1. Answer ONLY based on the provided document context.
+          2. STRICTLY REFUSE to answer questions about software development, coding, or programming.
+          3. STRICTLY REFUSE to discuss topics not found in the document.
+          4. If the user asks for code, say "I cannot assist with software development tasks."
+          
+          DOCUMENT CONTEXT:
+          ${documentContext.substring(0, 50000)}`
+    });
+    
+    const chat = model.startChat({
+      history: history
+    });
 
-  const result = await chat.sendMessage(message);
-  const response = await result.response;
-  return response.text() || "I could not generate a response.";
+    const result = await chat.sendMessage(message);
+    const response = await result.response;
+    return response.text() || "I could not generate a response.";
+  } catch (error) {
+    console.error("Chat error:", error);
+    return "Sorry, I encountered an error while processing your request. Please try again.";
+  }
 };

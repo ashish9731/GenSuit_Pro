@@ -16,7 +16,7 @@ export const generateEmailDraft = async (
   enhance: boolean,
   context?: string
 ): Promise<string> => {
-  const model = ai.getGenerativeModel({ model: "gemini-pro" });
+  const model = ai.getGenerativeModel({ model: "models/gemini-1.0-pro-001" });
   
   let userInstruction = prompt;
   if (enhance) {
@@ -59,7 +59,7 @@ export const generateEmailDraft = async (
 };
 
 export const enhanceUserPrompt = async (rawPrompt: string): Promise<string> => {
-    const model = ai.getGenerativeModel({ model: "gemini-pro" });
+    const model = ai.getGenerativeModel({ model: "models/gemini-1.0-pro-001" });
     const response = await model.generateContent(`You are an expert Prompt Engineer. Rewrite the following user draft request into a structured, highly detailed prompt that will ensure a perfect AI generation.
         
         User Input: "${rawPrompt}"
@@ -78,7 +78,7 @@ export const enhanceUserPrompt = async (rawPrompt: string): Promise<string> => {
 // --- Analytics Service ---
 
 export const analyzeSalesData = async (dataSample: string): Promise<AnalyticsReport> => {
-  const model = ai.getGenerativeModel({ model: "gemini-pro" });
+  const model = ai.getGenerativeModel({ model: "models/gemini-1.0-pro-001" });
 
   const schema: Schema = {
     type: SchemaType.OBJECT,
@@ -197,7 +197,7 @@ export const chatWithDocument = async (
 ): Promise<string> => {
   // Pass system instruction when getting the model
   const model = ai.getGenerativeModel({
-    model: "gemini-pro",
+    model: "models/gemini-1.0-pro-001",
     systemInstruction: `You are a helpful assistant analyzing a specific document provided by the user. 
         
         RULES:

@@ -194,20 +194,26 @@ export const analyzeSalesData = async (dataSample: string): Promise<AnalyticsRep
         }
         
         console.log("Clean text after removing code blocks:", cleanText);
-        const parsedData = JSON.parse(cleanText) as AnalyticsReport;
+        const parsedData = JSON.parse(cleanText) as any;
         console.log("Parsed data:", parsedData);
         
-        // Ensure all required fields are present with default empty values
+        // Map the Gemini API response to the expected AnalyticsReport structure
         const safeData: AnalyticsReport = {
           kpis: Array.isArray(parsedData.kpis) ? parsedData.kpis : [],
-          dailySummary: typeof parsedData.dailySummary === 'string' ? parsedData.dailySummary : "No data available",
-          weeklySummary: typeof parsedData.weeklySummary === 'string' ? parsedData.weeklySummary : "No data available",
-          monthlySummary: typeof parsedData.monthlySummary === 'string' ? parsedData.monthlySummary : "No data available",
-          strategicRecommendations: Array.isArray(parsedData.strategicRecommendations) ? parsedData.strategicRecommendations : [],
-          forecast: typeof parsedData.forecast === 'string' ? parsedData.forecast : "No forecast available",
-          revenueTrend: Array.isArray(parsedData.revenueTrend) ? parsedData.revenueTrend : [],
-          productDistribution: Array.isArray(parsedData.productDistribution) ? parsedData.productDistribution : [],
-          personnelAnalysis: Array.isArray(parsedData.personnelAnalysis) ? parsedData.personnelAnalysis : []
+          dailySummary: Array.isArray(parsedData.executive_summaries?.daily) && parsedData.executive_summaries.daily.length > 0 
+            ? parsedData.executive_summaries.daily[0].summary 
+            : "No data available",
+          weeklySummary: Array.isArray(parsedData.executive_summaries?.weekly) && parsedData.executive_summaries.weekly.length > 0 
+            ? parsedData.executive_summaries.weekly[0].summary 
+            : "No data available",
+          monthlySummary: Array.isArray(parsedData.executive_summaries?.monthly) && parsedData.executive_summaries.monthly.length > 0 
+            ? parsedData.executive_summaries.monthly[0].summary 
+            : "No data available",
+          strategicRecommendations: Array.isArray(parsedData.strategic_recommendations) ? parsedData.strategic_recommendations : [],
+          forecast: typeof parsedData.next_month_outlook === 'string' ? parsedData.next_month_outlook : "No forecast available",
+          revenueTrend: Array.isArray(parsedData.revenue_trend_chart_data) ? parsedData.revenue_trend_chart_data : [],
+          productDistribution: Array.isArray(parsedData.category_distribution_pie_chart_data) ? parsedData.category_distribution_pie_chart_data : [],
+          personnelAnalysis: Array.isArray(parsedData.salesperson_performance) ? parsedData.salesperson_performance : []
         };
         
         console.log("Safe data being returned:", safeData);

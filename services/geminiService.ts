@@ -1,7 +1,12 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { GoogleGenerativeAI, Schema, SchemaType, GenerationConfig } from "@google/generative-ai";
 import { AnalyticsReport } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Updated to use environment variable from Vite
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+if (!apiKey) {
+  throw new Error("VITE_GEMINI_API_KEY is not defined in environment variables");
+}
+const ai = new GoogleGenerativeAI(apiKey);
 
 // --- Email Service ---
 
@@ -10,7 +15,7 @@ export const generateEmailDraft = async (
   enhance: boolean,
   context?: string
 ): Promise<string> => {
-  const model = "gemini-2.5-flash";
+  const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
   
   let userInstruction = prompt;
   if (enhance) {
@@ -47,22 +52,14 @@ export const generateEmailDraft = async (
     Output ONLY the email content. Start with "Subject:".
   `;
 
-  const response = await ai.models.generateContent({
-    model,
-    contents: finalPrompt,
-    config: {
-        systemInstruction: "You are an elite corporate communication AI. You despise fluff. You prioritize clarity, active voice, and result-oriented communication. You never hallucinate facts."
-    }
-  });
-
-  return response.text || "";
+  const result = await model.generateContent(finalPrompt);
+  const response = await result.response;
+  return response.text() || "";
 };
 
 export const enhanceUserPrompt = async (rawPrompt: string): Promise<string> => {
-    const model = "gemini-2.5-flash";
-    const response = await ai.models.generateContent({
-        model,
-        contents: `You are an expert Prompt Engineer. Rewrite the following user draft request into a structured, highly detailed prompt that will ensure a perfect AI generation.
+    const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const response = await model.generateContent(`You are an expert Prompt Engineer. Rewrite the following user draft request into a structured, highly detailed prompt that will ensure a perfect AI generation.
         
         User Input: "${rawPrompt}"
         
@@ -72,70 +69,70 @@ export const enhanceUserPrompt = async (rawPrompt: string): Promise<string> => {
         3. Add Tone constraints (e.g., "Professional but urgent").
         4. Specify the Format.
         
-        Return ONLY the enhanced prompt text.`
-    });
-    return response.text || rawPrompt;
+        Return ONLY the enhanced prompt text.`);
+    const result = await response.response;
+    return result.text() || rawPrompt;
 }
 
 // --- Analytics Service ---
 
 export const analyzeSalesData = async (dataSample: string): Promise<AnalyticsReport> => {
-  const model = "gemini-2.5-flash";
+  const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
 
   const schema: Schema = {
-    type: Type.OBJECT,
+    type: SchemaType.OBJECT,
     properties: {
       kpis: {
-        type: Type.ARRAY,
+        type: SchemaType.ARRAY,
         items: {
-          type: Type.OBJECT,
+          type: SchemaType.OBJECT,
           properties: {
-            label: { type: Type.STRING },
-            value: { type: Type.STRING },
-            change: { type: Type.STRING },
-            trend: { type: Type.STRING, enum: ['up', 'down', 'neutral'] }
+            label: { type: SchemaType.STRING },
+            value: { type: SchemaType.STRING },
+            change: { type: SchemaType.STRING },
+            trend: { type: SchemaType.STRING, enum: ['up', 'down', 'neutral'] } as Schema
           }
         }
       },
-      dailySummary: { type: Type.STRING },
-      weeklySummary: { type: Type.STRING },
-      monthlySummary: { type: Type.STRING },
-      strategicRecommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
-      forecast: { type: Type.STRING, description: "A prediction for the next period based on current trends" },
+      dailySummary: { type: SchemaType.STRING },
+      weeklySummary: { type: SchemaType.STRING },
+      monthlySummary: { type: SchemaType.STRING },
+      strategicRecommendations: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+      forecast: { type: SchemaType.STRING, description: "A prediction for the next period based on current trends" },
       revenueTrend: {
-        type: Type.ARRAY,
+        type: SchemaType.ARRAY,
         items: {
-            type: Type.OBJECT,
+            type: SchemaType.OBJECT,
             properties: {
-                date: { type: Type.STRING, description: "Short date format e.g., 'Jan 01'" },
-                value: { type: Type.NUMBER, description: "Numeric value for the chart" }
+                date: { type: SchemaType.STRING, description: "Short date format e.g., 'Jan 01'" },
+                value: { type: SchemaType.NUMBER, description: "Numeric value for the chart" }
             }
         },
         description: "Extract at least 5-10 data points representing revenue or sales volume over time from the data."
       },
       productDistribution: {
-        type: Type.ARRAY,
+        type: SchemaType.ARRAY,
         items: {
-            type: Type.OBJECT,
+            type: SchemaType.OBJECT,
             properties: {
-                name: { type: Type.STRING },
-                value: { type: Type.NUMBER }
+                name: { type: SchemaType.STRING },
+                value: { type: SchemaType.NUMBER }
             }
         },
         description: "Top 5 categories/products and their total value or count."
       },
       personnelAnalysis: {
-        type: Type.ARRAY,
+        type: SchemaType.ARRAY,
         items: {
-          type: Type.OBJECT,
+          type: SchemaType.OBJECT,
           properties: {
-            name: { type: Type.STRING },
-            performanceScore: { type: Type.NUMBER, description: "Score out of 100 based on relative performance" },
-            revenueGenerated: { type: Type.STRING, description: "Formatted string e.g., '$50,000'" },
-            salesCount: { type: Type.NUMBER },
-            keyStrength: { type: Type.STRING },
-            areaForImprovement: { type: Type.STRING },
-            actionPlan: { type: Type.STRING, description: "One specific actionable step for this person to improve." }
+            name: { type: SchemaType.STRING },
+            performanceScore: { type: SchemaType.NUMBER, description: "Score out of 100 based on relative performance" },
+            revenueGenerated: { type: SchemaType.STRING, description: "Formatted string e.g., '$50,000'" },
+            salesCount: { type: SchemaType.NUMBER },
+            keyStrength: { type: SchemaType.STRING },
+            areaForImprovement: { type: SchemaType.STRING },
+            actionPlan: { type: SchemaType.STRING, description: "One specific actionable step for this person to improve." }
           }
         }
       }
@@ -161,24 +158,25 @@ export const analyzeSalesData = async (dataSample: string): Promise<AnalyticsRep
   ${dataSample.substring(0, 30000)} 
   `; 
 
-  const response = await ai.models.generateContent({
-    model,
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: schema,
-      systemInstruction: "You are a Chief Data Officer. You provide ruthless, high-level business intelligence. You do not just summarize; you find the 'So What?'. Prioritize accuracy."
-    }
-  });
+  const config: GenerationConfig = {
+    responseMimeType: "application/json"
+  };
 
-  if (response.text) {
+  const result = await model.generateContent({
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: config
+  });
+  
+  const response = await result.response;
+  
+  if (response.text()) {
       try {
-        // Robust cleanup: sometimes models wrap JSON in markdown blocks
-        let cleanText = response.text.trim();
+        // Robust cleanup: sometimes models wrap JSON in code blocks
+        let cleanText = response.text().trim();
         if (cleanText.startsWith('```json')) {
             cleanText = cleanText.replace(/^```json/, '').replace(/```$/, '');
         } else if (cleanText.startsWith('```')) {
-            cleanText = cleanText.replace(/^```/, '').replace(/```$/, '');
+            cleanText = cleanText.replace(/^``/, '').replace(/```$/, '');
         }
         return JSON.parse(cleanText) as AnalyticsReport;
       } catch (e) {
@@ -196,13 +194,10 @@ export const chatWithDocument = async (
   message: string,
   documentContext: string
 ): Promise<string> => {
-  const model = "gemini-2.5-flash";
-  
-  const chat = ai.chats.create({
-    model,
-    history: history,
-    config: {
-        systemInstruction: `You are a helpful assistant analyzing a specific document provided by the user. 
+  // Pass system instruction when getting the model
+  const model = ai.getGenerativeModel({
+    model: "gemini-1.5-flash",
+    systemInstruction: `You are a helpful assistant analyzing a specific document provided by the user. 
         
         RULES:
         1. Answer ONLY based on the provided document context.
@@ -212,9 +207,13 @@ export const chatWithDocument = async (
         
         DOCUMENT CONTEXT:
         ${documentContext.substring(0, 50000)}`
-    }
+  });
+  
+  const chat = model.startChat({
+    history: history
   });
 
-  const response = await chat.sendMessage({ message });
-  return response.text || "I could not generate a response.";
+  const result = await chat.sendMessage(message);
+  const response = await result.response;
+  return response.text() || "I could not generate a response.";
 };

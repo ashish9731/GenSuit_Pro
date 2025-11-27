@@ -199,7 +199,11 @@ export const analyzeSalesData = async (dataSample: string): Promise<AnalyticsRep
         
         // Map the Gemini API response to the expected AnalyticsReport structure
         const safeData: AnalyticsReport = {
-          kpis: Array.isArray(parsedData.kpis) ? parsedData.kpis : [],
+          kpis: Array.isArray(parsedData.kpis) ? parsedData.kpis.map((kpi: { name: string; value: string | number; unit: string }) => ({
+            label: kpi.name,
+            value: kpi.value,
+            change: kpi.unit
+          })) : [],
           dailySummary: Array.isArray(parsedData.executive_summaries?.daily) && parsedData.executive_summaries.daily.length > 0 
             ? parsedData.executive_summaries.daily[0].summary 
             : "No data available",
@@ -211,9 +215,36 @@ export const analyzeSalesData = async (dataSample: string): Promise<AnalyticsRep
             : "No data available",
           strategicRecommendations: Array.isArray(parsedData.strategic_recommendations) ? parsedData.strategic_recommendations : [],
           forecast: typeof parsedData.next_month_outlook === 'string' ? parsedData.next_month_outlook : "No forecast available",
-          revenueTrend: Array.isArray(parsedData.revenue_trend_chart_data) ? parsedData.revenue_trend_chart_data : [],
-          productDistribution: Array.isArray(parsedData.category_distribution_pie_chart_data) ? parsedData.category_distribution_pie_chart_data : [],
-          personnelAnalysis: Array.isArray(parsedData.salesperson_performance) ? parsedData.salesperson_performance : []
+          revenueTrend: Array.isArray(parsedData.revenue_trend_chart_data) 
+            ? parsedData.revenue_trend_chart_data.map((item: { time: string; value: number }) => ({
+                date: item.time,
+                value: item.value
+              }))
+            : [],
+          productDistribution: Array.isArray(parsedData.category_distribution_pie_chart_data) 
+            ? parsedData.category_distribution_pie_chart_data.map((item: { category: string; value: number }) => ({
+                name: item.category,
+                value: item.value
+              }))
+            : [],
+          personnelAnalysis: Array.isArray(parsedData.salesperson_performance) 
+            ? parsedData.salesperson_performance.map((person: { 
+                id: string; 
+                performance_score: string; 
+                total_net_weight: number; 
+                anomaly_iso_count: number; 
+                action_plan: string 
+              }) => ({
+                name: person.id,
+                performanceScore: person.performance_score === "High" ? 90 : 
+                                person.performance_score === "Medium-Low" ? 50 : 30,
+                revenueGenerated: person.total_net_weight?.toLocaleString() || "0",
+                salesCount: 1, // This would need to be calculated from the data
+                keyStrength: "Consistent performance", // Default value
+                areaForImprovement: person.anomaly_iso_count > 0 ? "Reduce anomalies" : "Maintain current performance",
+                actionPlan: person.action_plan || "Continue current practices"
+              }))
+            : []
         };
         
         console.log("Safe data being returned:", safeData);

@@ -4,7 +4,8 @@ import { AnalyticsReport } from "../types";
 // Updated to use environment variable from Vite
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 if (!apiKey) {
-  throw new Error("VITE_GEMINI_API_KEY is not defined in environment variables");
+  console.error("Gemini API key is missing. Please set VITE_GEMINI_API_KEY in your .env.local file");
+  throw new Error("Gemini API key is missing. Please set VITE_GEMINI_API_KEY in your .env.local file");
 }
 const ai = new GoogleGenerativeAI(apiKey);
 

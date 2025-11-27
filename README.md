@@ -25,3 +25,16 @@ This contains everything you need to run your app locally.
    You can copy `.env.local.example` to `.env.local` and fill in your values.
 3. Run the app:
    `npm run dev`
+
+## Deploy to Vercel
+
+When deploying to Vercel, make sure to set the same environment variables in your Vercel project settings:
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+- `VITE_GEMINI_API_KEY`
+
+These environment variables are required for the app to function properly.

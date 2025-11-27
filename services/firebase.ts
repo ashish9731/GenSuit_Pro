@@ -21,6 +21,12 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
+// Check if required environment variables are set
+if (!firebaseConfig.apiKey) {
+  console.error("Firebase API key is missing. Please set VITE_FIREBASE_API_KEY in your .env.local file");
+  throw new Error("Firebase API key is missing. Please set VITE_FIREBASE_API_KEY in your .env.local file");
+}
+
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();

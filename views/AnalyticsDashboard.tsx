@@ -30,7 +30,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
       const text = event.target?.result as string;
       onDataLoaded(text);
       try {
+        console.log("Sending data to analyzeSalesData:", text.substring(0, 500) + "..."); // Log first 500 chars
         const report = await analyzeSalesData(text);
+        console.log("Received report from analyzeSalesData:", report);
         setData(report);
       } catch (err) {
         console.error(err);

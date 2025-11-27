@@ -179,18 +179,23 @@ export const analyzeSalesData = async (dataSample: string): Promise<AnalyticsRep
   });
   
   const response = await result.response;
+  console.log("Raw Gemini response:", response.text());
   
   if (response.text()) {
       try {
         // Robust cleanup: sometimes models wrap JSON in code blocks
         let cleanText = response.text().trim();
+        console.log("Clean text before processing:", cleanText);
+        
         if (cleanText.startsWith('```json')) {
           cleanText = cleanText.replace(/^```json/, '').replace(/```$/, '');
         } else if (cleanText.startsWith('```')) {
           cleanText = cleanText.replace(/^``/, '').replace(/```$/, '');
         }
         
+        console.log("Clean text after removing code blocks:", cleanText);
         const parsedData = JSON.parse(cleanText) as AnalyticsReport;
+        console.log("Parsed data:", parsedData);
         
         // Ensure all required fields are present with default empty values
         const safeData: AnalyticsReport = {
@@ -205,6 +210,7 @@ export const analyzeSalesData = async (dataSample: string): Promise<AnalyticsRep
           personnelAnalysis: Array.isArray(parsedData.personnelAnalysis) ? parsedData.personnelAnalysis : []
         };
         
+        console.log("Safe data being returned:", safeData);
         return safeData;
       } catch (e) {
         console.error("JSON Parse Error:", e);

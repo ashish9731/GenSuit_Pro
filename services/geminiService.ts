@@ -354,6 +354,14 @@ export const chatWithDocument = async (
           ${documentContext.substring(0, 50000)}`
     });
     
+    // Fix history to ensure it starts with a user message
+    // The Google Generative AI library requires the first entry to have role 'user'
+    let fixedHistory = [...history];
+    if (fixedHistory.length > 0 && fixedHistory[0].role !== 'user') {
+      // Remove the first entry if it's not a user message
+      fixedHistory = fixedHistory.slice(1);
+    }
+    
     // Enhance KPI requests with specific instructions
     let enhancedMessage = message;
     if (message.toLowerCase().includes('kpi') || message.toLowerCase().includes('key performance indicator') || 
@@ -374,7 +382,7 @@ export const chatWithDocument = async (
     }
     
     const chat = model.startChat({
-      history: history
+      history: fixedHistory
     });
 
     const result = await chat.sendMessage(enhancedMessage);

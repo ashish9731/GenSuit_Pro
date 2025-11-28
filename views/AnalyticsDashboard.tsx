@@ -250,6 +250,31 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         parseData(csvContent);
         const report = await analyzeSalesData(csvContent);
         setData(report);
+      } else if (fileName.endsWith('.pdf')) {
+        // Handle PDF files
+        const data = await file.arrayBuffer();
+        
+        // Dynamically import pdfjs to reduce bundle size
+        const pdfjs = await import('pdfjs-dist');
+        pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+        
+        const pdf = await pdfjs.getDocument({ data }).promise;
+        let textContent = '';
+        
+        // Extract text from all pages
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const text = await page.getTextContent();
+          textContent += text.items.map((item: any) => item.str).join(' ') + '\n';
+        }
+        
+        // Convert PDF text to a simple text format for analysis
+        const formattedText = `PDF Document Content:\n${textContent}`;
+        
+        onDataLoaded(formattedText, fileName);
+        parseData(formattedText);
+        const report = await analyzeSalesData(formattedText);
+        setData(report);
       } else {
         // Handle CSV, JSON, TXT files
         const reader = new FileReader();
@@ -272,7 +297,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       }
     } catch (err) {
       console.error("File processing error:", err);
-      alert("Error processing file. Please ensure it is a valid CSV, JSON, Excel, or text file.");
+      alert("Error processing file. Please ensure it is a valid file format.");
     } finally {
       setLoading(false);
     }
@@ -437,7 +462,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             <label className="cursor-pointer bg-indigo-600 text-white px-5 py-3 rounded-xl hover:bg-indigo-700 transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 dark:shadow-none font-semibold">
                 <Upload className="w-4 h-4" />
                 Upload Data
-                <input type="file" className="hidden" accept=".csv,.json,.txt,.xlsx,.xls" onChange={handleFileUpload} />
+                <input type="file" className="hidden" accept=".csv,.json,.txt,.xlsx,.xls,.pdf" onChange={handleFileUpload} />
             </label>
         </div>
       </header>

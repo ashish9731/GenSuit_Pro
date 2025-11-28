@@ -297,16 +297,37 @@ export const chatWithDocument = async (
           2. STRICTLY REFUSE to answer questions about software development, coding, or programming.
           3. STRICTLY REFUSE to discuss topics not found in the document.
           4. If the user asks for code, say "I cannot assist with software development tasks."
+          5. If the user asks for KPIs or metrics, analyze the data to provide meaningful insights.
+          6. When asked to create KPIs, identify key metrics from the data such as totals, averages, maximums, minimums, and trends.
           
           DOCUMENT CONTEXT:
           ${documentContext.substring(0, 50000)}`
     });
     
+    // Enhance KPI requests with specific instructions
+    let enhancedMessage = message;
+    if (message.toLowerCase().includes('kpi') || message.toLowerCase().includes('key performance indicator') || 
+        message.toLowerCase().includes('metric') || message.toLowerCase().includes('create kpi')) {
+      enhancedMessage = `Based on the document data, please create relevant KPIs (Key Performance Indicators) that would be valuable for business analysis. 
+      
+      When creating KPIs, consider:
+      1. Total values (sums) for numerical columns
+      2. Average values for numerical columns
+      3. Maximum and minimum values
+      4. Count of records
+      5. Trends over time if date information is available
+      6. Category distributions if categorical data exists
+      
+      Format your response clearly with labels and values.
+      
+      User request: ${message}`;
+    }
+    
     const chat = model.startChat({
       history: history
     });
 
-    const result = await chat.sendMessage(message);
+    const result = await chat.sendMessage(enhancedMessage);
     const response = await result.response;
     return response.text() || "I could not generate a response.";
   } catch (error) {

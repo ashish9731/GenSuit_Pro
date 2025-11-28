@@ -3,6 +3,7 @@ import { Upload, FileText, TrendingUp, TrendingDown, Lightbulb, Target, PieChart
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line, PieChart, Pie, Cell, Legend } from 'recharts';
 import { analyzeSalesData } from '../services/geminiService';
 import { AnalyticsReport } from '../types';
+import * as XLSX from 'xlsx';
 
 interface AnalyticsDashboardProps {
   onDataLoaded: (data: string, fileName?: string) => void;
@@ -188,26 +189,74 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     setLoading(true);
     setActiveFilters({}); // Reset filters on new upload
 
-    // Pass filename to parent component
-    if (onDataLoaded) {
-      // We need to read the file content first to pass it to onDataLoaded
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const text = event.target?.result as string;
-        onDataLoaded(text, fileName); // Pass both data and filename
-        // Continue with parsing and analysis
-        parseData(text);
-        try {
-          const report = await analyzeSalesData(text);
-          setData(report);
-        } catch (err) {
-          console.error(err);
-          alert("Error analyzing data. Please ensure it is a valid CSV/JSON text file.");
-        } finally {
-          setLoading(false);
+    try {
+      // Handle different file types
+      if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        // Handle Excel files
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        // Convert to CSV format
+        let csvContent = '';
+        if (jsonData.length > 0) {
+          // Add headers
+          if (Array.isArray(jsonData[0])) {
+            csvContent += jsonData[0].join(',') + '\n';
+          } else {
+            // If first row is not an array, use generic headers
+            const firstRow = jsonData[0] as any;
+            if (firstRow && typeof firstRow === 'object') {
+              csvContent += Object.keys(firstRow).join(',') + '\n';
+            }
+          }
+          
+          // Add data rows
+          for (let i = 1; i < jsonData.length; i++) {
+            const row = jsonData[i];
+            if (Array.isArray(row)) {
+              csvContent += row.map(cell => `"${cell}"`).join(',') + '\n';
+            } else {
+              // Handle object rows
+              const objRow = row as any;
+              if (objRow && typeof objRow === 'object') {
+                csvContent += Object.values(objRow).map(cell => `"${cell}"`).join(',') + '\n';
+              }
+            }
+          }
         }
-      };
-      reader.readAsText(file);
+        
+        onDataLoaded(csvContent, fileName);
+        parseData(csvContent);
+        const report = await analyzeSalesData(csvContent);
+        setData(report);
+      } else {
+        // Handle CSV, JSON, TXT files
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          const text = event.target?.result as string;
+          onDataLoaded(text, fileName);
+          parseData(text);
+          try {
+            const report = await analyzeSalesData(text);
+            setData(report);
+          } catch (err) {
+            console.error(err);
+            alert("Error analyzing data. Please ensure it is a valid CSV/JSON/text file.");
+          } finally {
+            setLoading(false);
+          }
+        };
+        reader.readAsText(file);
+        return; // Return early to avoid double execution
+      }
+    } catch (err) {
+      console.error("File processing error:", err);
+      alert("Error processing file. Please ensure it is a valid CSV, JSON, Excel, or text file.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -314,7 +363,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             <label className="cursor-pointer bg-indigo-600 text-white px-5 py-3 rounded-xl hover:bg-indigo-700 transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 dark:shadow-none font-semibold">
                 <Upload className="w-4 h-4" />
                 Upload Data
-                <input type="file" className="hidden" accept=".csv,.json,.txt" onChange={handleFileUpload} />
+                <input type="file" className="hidden" accept=".csv,.json,.txt,.xlsx,.xls" onChange={handleFileUpload} />
             </label>
         </div>
       </header>

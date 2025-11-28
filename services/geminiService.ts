@@ -233,12 +233,32 @@ export const analyzeSalesData = async (dataSample: string): Promise<AnalyticsRep
         // Map the Gemini API response to the expected AnalyticsReport structure
         // Handle both the expected structure and potential variations from the AI
         const safeData: AnalyticsReport = {
-          kpis: Array.isArray(parsedData.kpis) ? parsedData.kpis.map((kpi: any) => ({
-            label: kpi.label || kpi.name || 'Unknown KPI',
-            value: kpi.value !== undefined ? kpi.value : 'N/A',
-            change: kpi.change || kpi.unit || '',
-            trend: kpi.trend || 'neutral'
-          })) : [],
+          kpis: Array.isArray(parsedData.kpis) ? parsedData.kpis.map((kpi: any) => {
+            // Format the value properly
+            let formattedValue: string | number = 'N/A';
+            if (kpi.value !== undefined) {
+              if (typeof kpi.value === 'number') {
+                // Format numbers with proper localization
+                if (Number.isInteger(kpi.value)) {
+                  formattedValue = kpi.value.toLocaleString();
+                } else {
+                  formattedValue = kpi.value.toLocaleString(undefined, { 
+                    minimumFractionDigits: 2, 
+                    maximumFractionDigits: 2 
+                  });
+                }
+              } else {
+                formattedValue = kpi.value;
+              }
+            }
+            
+            return {
+              label: kpi.label || kpi.name || 'Unknown KPI',
+              value: formattedValue,
+              change: kpi.change || kpi.unit || '',
+              trend: kpi.trend || 'neutral'
+            };
+          }) : [],
           dailySummary: parsedData.dailySummary || parsedData.daily_summary || parsedData.daily || "No data available",
           weeklySummary: parsedData.weeklySummary || parsedData.weekly_summary || parsedData.weekly || "No data available",
           monthlySummary: parsedData.monthlySummary || parsedData.monthly_summary || parsedData.monthly || "No data available",

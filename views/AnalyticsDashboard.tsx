@@ -123,7 +123,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     // Total rows
     kpis.push({
       label: "Total Records",
-      value: rows.length,
+      value: rows.length.toLocaleString(),
       change: "records"
     });
     
@@ -132,23 +132,33 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       // Check if this column contains mostly numeric values
       const numericValues = rows
         .map(row => row[header])
-        .filter(val => !isNaN(parseFloat(String(val))) && isFinite(parseFloat(String(val))));
+        .map(val => String(val).trim())
+        .filter(val => val !== '' && !isNaN(parseFloat(val)) && isFinite(parseFloat(val)))
+        .map(val => parseFloat(val));
       
-      if (numericValues.length > 0) {
-        const sum = numericValues.reduce((acc, val) => acc + parseFloat(String(val)), 0);
+      // Only process if we have enough numeric values (at least 50% of rows)
+      if (numericValues.length > 0 && numericValues.length >= rows.length * 0.5) {
+        const sum = numericValues.reduce((acc, val) => acc + val, 0);
         const avg = sum / numericValues.length;
-        const max = Math.max(...numericValues.map(val => parseFloat(String(val))));
-        const min = Math.min(...numericValues.map(val => parseFloat(String(val))));
+        
+        // Format numbers appropriately
+        const formatNumber = (num: number): string => {
+          if (Number.isInteger(num)) {
+            return num.toLocaleString();
+          } else {
+            return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          }
+        };
         
         kpis.push({
-          label: `${header} (Avg)`,
-          value: avg.toFixed(2),
+          label: `${header} (Avg)` ,
+          value: formatNumber(avg),
           change: "average"
         });
         
         kpis.push({
-          label: `${header} (Sum)`,
-          value: sum.toFixed(2),
+          label: `${header} (Sum)` ,
+          value: formatNumber(sum),
           change: "total"
         });
       }

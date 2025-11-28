@@ -119,8 +119,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   };
 
   const generateAutomaticKPIs = (rows: any[], headers: string[]) => {
-    // Only generate automatic KPIs if we have substantial data
-    if (rows.length === 0 || rows.length < 8) return [];
+    // Generate automatic KPIs if we have any data (lower the threshold)
+    if (rows.length === 0) return [];
     
     const kpis: any[] = [];
     
@@ -136,39 +136,79 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       // Check if this column contains mostly numeric values
       const numericValues = rows
         .map(row => row[header])
-        .map(val => String(val).trim())
+        .map(val => {
+          // Handle different data types
+          if (typeof val === 'number') {
+            return val.toString();
+          }
+          if (typeof val === 'string') {
+            return val.trim();
+          }
+          return '';
+        })
         .filter(val => val !== '' && !isNaN(parseFloat(val)) && isFinite(parseFloat(val)))
         .map(val => parseFloat(val));
       
-      // Only process if we have enough numeric values (at least 70% of rows)
-      if (numericValues.length > 0 && numericValues.length >= rows.length * 0.7) {
+      // Process if we have any numeric values (even just one is enough to show a KPI)
+      if (numericValues.length > 0) {
         const sum = numericValues.reduce((acc, val) => acc + val, 0);
         const avg = sum / numericValues.length;
+        const max = Math.max(...numericValues);
+        const min = Math.min(...numericValues);
         
         // Format numbers appropriately
         const formatNumber = (num: number): string => {
+          // For very large numbers, use compact notation
+          if (Math.abs(num) >= 1000000) {
+            return num.toLocaleString(undefined, { 
+              notation: "compact", 
+              maximumFractionDigits: 2 
+            });
+          }
+          // For integers
           if (Number.isInteger(num)) {
             return num.toLocaleString();
-          } else {
-            return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          } 
+          // For decimals, show up to 2 decimal places
+          else {
+            return num.toLocaleString(undefined, { 
+              minimumFractionDigits: 1, 
+              maximumFractionDigits: 2 
+            });
           }
         };
         
         kpis.push({
-          label: `${header} (Avg)` ,
+          label: `${header} (Avg)`,
           value: formatNumber(avg),
           change: "average"
         });
         
         kpis.push({
-          label: `${header} (Sum)` ,
+          label: `${header} (Sum)`,
           value: formatNumber(sum),
           change: "total"
         });
+        
+        // Only add min/max if they're different (not for single values)
+        if (numericValues.length > 1) {
+          kpis.push({
+            label: `${header} (Min)`,
+            value: formatNumber(min),
+            change: "minimum"
+          });
+          
+          kpis.push({
+            label: `${header} (Max)`,
+            value: formatNumber(max),
+            change: "maximum"
+          });
+        }
       }
     });
     
-    return kpis.slice(0, 4); // Limit to 4 KPIs to fit the grid
+    // Limit to 4 KPIs to fit the grid, but prioritize the most useful ones
+    return kpis.slice(0, 4);
   };
 
   const generateFilterOptions = (rows: any[], cols: string[]) => {

@@ -238,12 +238,17 @@ export const analyzeSalesData = async (dataSample: string): Promise<AnalyticsRep
             let formattedValue: string | number = 'N/A';
             if (kpi.value !== undefined) {
               if (typeof kpi.value === 'number') {
-                // Format numbers with proper localization
-                if (Number.isInteger(kpi.value)) {
+                // Format numbers with proper localization and compact notation for large numbers
+                if (Math.abs(kpi.value) >= 1000000) {
+                  formattedValue = kpi.value.toLocaleString(undefined, { 
+                    notation: "compact", 
+                    maximumFractionDigits: 2 
+                  });
+                } else if (Number.isInteger(kpi.value)) {
                   formattedValue = kpi.value.toLocaleString();
                 } else {
                   formattedValue = kpi.value.toLocaleString(undefined, { 
-                    minimumFractionDigits: 2, 
+                    minimumFractionDigits: 1, 
                     maximumFractionDigits: 2 
                   });
                 }

@@ -162,8 +162,41 @@ export const analyzeSalesData = async (dataSample: string): Promise<AnalyticsRep
   6. Extract data for a Product/Category Distribution Pie Chart.
   7. Analyze each salesperson's performance deeply, providing a score, revenue, and a specific action plan.
   
-  CRITICAL RULE:
-  - If the data is empty or unreadable, return a valid JSON object with empty arrays and "No Data" messages. DO NOT HALLUCINATE data that isn't there.
+  RESPONSE FORMAT:
+  Please return a JSON object with the following structure:
+  {
+    "kpis": [
+      { "label": "string", "value": "string or number", "change": "string", "trend": "up|down|neutral" }
+    ],
+    "dailySummary": "string",
+    "weeklySummary": "string",
+    "monthlySummary": "string",
+    "strategicRecommendations": ["string"],
+    "forecast": "string",
+    "revenueTrend": [
+      { "date": "string", "value": number }
+    ],
+    "productDistribution": [
+      { "name": "string", "value": number }
+    ],
+    "personnelAnalysis": [
+      {
+        "name": "string",
+        "performanceScore": number,
+        "revenueGenerated": "string",
+        "salesCount": number,
+        "keyStrength": "string",
+        "areaForImprovement": "string",
+        "actionPlan": "string"
+      }
+    ]
+  }
+  
+  CRITICAL RULES:
+  - Return ONLY valid JSON in the exact format specified above.
+  - If the data is empty or unreadable, return a valid JSON object with empty arrays and "No Data" messages.
+  - DO NOT HALLUCINATE data that isn't there.
+  - DO NOT include any markdown formatting or code block wrappers.
   
   Data Sample:
   ${dataSample.substring(0, 30000)} 
@@ -198,53 +231,45 @@ export const analyzeSalesData = async (dataSample: string): Promise<AnalyticsRep
         console.log("Parsed data:", parsedData);
         
         // Map the Gemini API response to the expected AnalyticsReport structure
+        // Handle both the expected structure and potential variations from the AI
         const safeData: AnalyticsReport = {
-          kpis: Array.isArray(parsedData.kpis) ? parsedData.kpis.map((kpi: { name: string; value: string | number; unit: string }) => ({
-            label: kpi.name,
-            value: kpi.value,
-            change: kpi.unit
+          kpis: Array.isArray(parsedData.kpis) ? parsedData.kpis.map((kpi: any) => ({
+            label: kpi.label || kpi.name || 'Unknown KPI',
+            value: kpi.value !== undefined ? kpi.value : 'N/A',
+            change: kpi.change || kpi.unit || '',
+            trend: kpi.trend || 'neutral'
           })) : [],
-          dailySummary: Array.isArray(parsedData.executive_summaries?.daily) && parsedData.executive_summaries.daily.length > 0 
-            ? parsedData.executive_summaries.daily[0].summary 
-            : "No data available",
-          weeklySummary: Array.isArray(parsedData.executive_summaries?.weekly) && parsedData.executive_summaries.weekly.length > 0 
-            ? parsedData.executive_summaries.weekly[0].summary 
-            : "No data available",
-          monthlySummary: Array.isArray(parsedData.executive_summaries?.monthly) && parsedData.executive_summaries.monthly.length > 0 
-            ? parsedData.executive_summaries.monthly[0].summary 
-            : "No data available",
-          strategicRecommendations: Array.isArray(parsedData.strategic_recommendations) ? parsedData.strategic_recommendations : [],
-          forecast: typeof parsedData.next_month_outlook === 'string' ? parsedData.next_month_outlook : "No forecast available",
-          revenueTrend: Array.isArray(parsedData.revenue_trend_chart_data) 
-            ? parsedData.revenue_trend_chart_data.map((item: { time: string; value: number }) => ({
-                date: item.time,
-                value: item.value
-              }))
-            : [],
-          productDistribution: Array.isArray(parsedData.category_distribution_pie_chart_data) 
-            ? parsedData.category_distribution_pie_chart_data.map((item: { category: string; value: number }) => ({
-                name: item.category,
-                value: item.value
-              }))
-            : [],
-          personnelAnalysis: Array.isArray(parsedData.salesperson_performance) 
-            ? parsedData.salesperson_performance.map((person: { 
-                id: string; 
-                performance_score: string; 
-                total_net_weight: number; 
-                anomaly_iso_count: number; 
-                action_plan: string 
-              }) => ({
-                name: person.id,
-                performanceScore: person.performance_score === "High" ? 90 : 
-                                person.performance_score === "Medium-Low" ? 50 : 30,
-                revenueGenerated: person.total_net_weight?.toLocaleString() || "0",
-                salesCount: 1, // This would need to be calculated from the data
-                keyStrength: "Consistent performance", // Default value
-                areaForImprovement: person.anomaly_iso_count > 0 ? "Reduce anomalies" : "Maintain current performance",
-                actionPlan: person.action_plan || "Continue current practices"
-              }))
-            : []
+          dailySummary: parsedData.dailySummary || parsedData.daily_summary || parsedData.daily || "No data available",
+          weeklySummary: parsedData.weeklySummary || parsedData.weekly_summary || parsedData.weekly || "No data available",
+          monthlySummary: parsedData.monthlySummary || parsedData.monthly_summary || parsedData.monthly || "No data available",
+          strategicRecommendations: Array.isArray(parsedData.strategicRecommendations) ? parsedData.strategicRecommendations : 
+                                 Array.isArray(parsedData.strategic_recommendations) ? parsedData.strategic_recommendations : [],
+          forecast: parsedData.forecast || parsedData.next_month_outlook || "No forecast available",
+          revenueTrend: Array.isArray(parsedData.revenueTrend) ? parsedData.revenueTrend : 
+                       Array.isArray(parsedData.revenue_trend) ? parsedData.revenue_trend : 
+                       Array.isArray(parsedData.revenue_trend_chart_data) ? parsedData.revenue_trend_chart_data.map((item: any) => ({
+                         date: item.date || item.time || '',
+                         value: item.value || 0
+                       })) : [],
+          productDistribution: Array.isArray(parsedData.productDistribution) ? parsedData.productDistribution : 
+                              Array.isArray(parsedData.product_distribution) ? parsedData.product_distribution : 
+                              Array.isArray(parsedData.category_distribution_pie_chart_data) ? parsedData.category_distribution_pie_chart_data.map((item: any) => ({
+                                name: item.name || item.category || 'Unknown',
+                                value: item.value || 0
+                              })) : [],
+          personnelAnalysis: Array.isArray(parsedData.personnelAnalysis) ? parsedData.personnelAnalysis : 
+                            Array.isArray(parsedData.personnel_analysis) ? parsedData.personnel_analysis : 
+                            Array.isArray(parsedData.salesperson_performance) ? parsedData.salesperson_performance.map((person: any) => ({
+                              name: person.name || person.id || 'Unknown',
+                              performanceScore: person.performanceScore !== undefined ? person.performanceScore : 
+                                              person.performance_score !== undefined ? person.performance_score : 50,
+                              revenueGenerated: person.revenueGenerated || person.revenue_generated || person.total_net_weight?.toLocaleString() || "0",
+                              salesCount: person.salesCount !== undefined ? person.salesCount : 
+                                         person.sales_count !== undefined ? person.sales_count : 1,
+                              keyStrength: person.keyStrength || person.key_strength || "Consistent performance",
+                              areaForImprovement: person.areaForImprovement || person.area_for_improvement || "Maintain current performance",
+                              actionPlan: person.actionPlan || person.action_plan || "Continue current practices"
+                            })) : []
         };
         
         console.log("Safe data being returned:", safeData);

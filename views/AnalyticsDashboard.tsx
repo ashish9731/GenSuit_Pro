@@ -234,17 +234,31 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         }
         
         onDataLoaded(csvContent, fileName);
-        parseData(csvContent);
-        const report = await analyzeSalesData(csvContent);
-        
-        // Ensure KPIs are always displayed
         const rows = parseData(csvContent);
-        const automaticKPIs = generateAutomaticKPIs(rows, headers.length > 0 ? headers : Object.keys(rows[0] || {}));
-        if (!report.kpis || report.kpis.length === 0 || (report.kpis.length === 1 && report.kpis[0].label === "Total Records")) {
-          report.kpis = automaticKPIs;
+        try {
+          const report = await analyzeSalesData(csvContent);
+          // Ensure KPIs are always displayed
+          if (!report.kpis || report.kpis.length === 0) {
+            const automaticKPIs = generateAutomaticKPIs(rows, headers.length > 0 ? headers : (rows.length > 0 ? Object.keys(rows[0] || {}) : []));
+            report.kpis = automaticKPIs;
+          }
+          setData(report);
+        } catch (err) {
+          console.error("AI analysis failed:", err);
+          // Fallback to automatic KPIs
+          const automaticKPIs = generateAutomaticKPIs(rows, headers.length > 0 ? headers : (rows.length > 0 ? Object.keys(rows[0] || {}) : []));
+          setData({
+            kpis: automaticKPIs,
+            dailySummary: "Unable to analyze data with AI. Showing automatic KPIs only.",
+            weeklySummary: "Unable to analyze data with AI. Showing automatic KPIs only.",
+            monthlySummary: "Unable to analyze data with AI. Showing automatic KPIs only.",
+            strategicRecommendations: [],
+            forecast: "No forecast available",
+            revenueTrend: [],
+            productDistribution: [],
+            personnelAnalysis: []
+          });
         }
-        
-        setData(report);
       } else if (fileName.endsWith('.pdf')) {
         // Handle PDF files
         const data = await file.arrayBuffer();
@@ -268,15 +282,30 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         
         onDataLoaded(formattedText, fileName);
         parseData(formattedText);
-        const report = await analyzeSalesData(formattedText);
-        
-        // For PDFs, we'll use automatic KPIs since the content is text
-        const automaticKPIs = generateAutomaticKPIs([{content: textContent}], ['content']);
-        if (!report.kpis || report.kpis.length === 0) {
-          report.kpis = automaticKPIs;
+        try {
+          const report = await analyzeSalesData(formattedText);
+          // For PDFs, we'll use automatic KPIs since the content is text
+          if (!report.kpis || report.kpis.length === 0) {
+            const automaticKPIs = generateAutomaticKPIs([{content: textContent}], ['content']);
+            report.kpis = automaticKPIs;
+          }
+          setData(report);
+        } catch (err) {
+          console.error("AI analysis failed:", err);
+          // Fallback to automatic KPIs
+          const automaticKPIs = generateAutomaticKPIs([{content: textContent}], ['content']);
+          setData({
+            kpis: automaticKPIs,
+            dailySummary: "Unable to analyze PDF content with AI. Showing basic information.",
+            weeklySummary: "Unable to analyze PDF content with AI. Showing basic information.",
+            monthlySummary: "Unable to analyze PDF content with AI. Showing basic information.",
+            strategicRecommendations: [],
+            forecast: "No forecast available",
+            revenueTrend: [],
+            productDistribution: [],
+            personnelAnalysis: []
+          });
         }
-        
-        setData(report);
       } else {
         // Handle CSV, JSON, TXT files
         const reader = new FileReader();
@@ -286,18 +315,16 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           const rows = parseData(text);
           try {
             const report = await analyzeSalesData(text);
-            
             // Ensure KPIs are always displayed
-            const automaticKPIs = generateAutomaticKPIs(rows, headers.length > 0 ? headers : (rows.length > 0 ? Object.keys(rows[0]) : []));
-            if (!report.kpis || report.kpis.length === 0 || (report.kpis.length === 1 && report.kpis[0].label === "Total Records")) {
+            if (!report.kpis || report.kpis.length === 0) {
+              const automaticKPIs = generateAutomaticKPIs(rows, headers.length > 0 ? headers : (rows.length > 0 ? Object.keys(rows[0] || {}) : []));
               report.kpis = automaticKPIs;
             }
-            
             setData(report);
           } catch (err) {
-            console.error(err);
-            // Even if AI analysis fails, show automatic KPIs
-            const automaticKPIs = generateAutomaticKPIs(rows, headers.length > 0 ? headers : (rows.length > 0 ? Object.keys(rows[0]) : []));
+            console.error("AI analysis failed:", err);
+            // Fallback to automatic KPIs
+            const automaticKPIs = generateAutomaticKPIs(rows, headers.length > 0 ? headers : (rows.length > 0 ? Object.keys(rows[0] || {}) : []));
             setData({
               kpis: automaticKPIs,
               dailySummary: "Unable to analyze data with AI. Showing automatic KPIs only.",
@@ -555,51 +582,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 </div>
             </div>
             
-            {/* Custom Prompt Section */}
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
-                <div className="p-6 border-b border-slate-100 dark:border-slate-800">
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Request Custom Analysis</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Ask for specific KPIs, metrics, or analysis based on your data.</p>
-                </div>
-                <div className="p-6">
-                    <div className="flex flex-col sm:flex-row gap-4">
-                        <input
-                            type="text"
-                            value={customPrompt}
-                            onChange={(e) => setCustomPrompt(e.target.value)}
-                            placeholder="e.g., 'create KPIs for sales performance', 'analyze customer demographics', 'show trends for revenue'"
-                            className="flex-1 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                            onKeyDown={(e) => e.key === 'Enter' && handleCustomPrompt()}
-                        />
-                        <button
-                            onClick={handleCustomPrompt}
-                            disabled={isAnalyzingPrompt || !customPrompt.trim()}
-                            className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors font-semibold flex items-center justify-center gap-2"
-                        >
-                            {isAnalyzingPrompt ? (
-                                <>
-                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                    Analyzing...
-                                </>
-                            ) : (
-                                <>
-                                    <Activity className="w-4 h-4" />
-                                    Analyze
-                                </>
-                            )}
-                        </button>
-                    </div>
-                    
-                    {customAnalysis && (
-                        <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                            <h4 className="font-bold text-slate-900 dark:text-white mb-2">Analysis Results</h4>
-                            <div className="whitespace-pre-wrap text-slate-700 dark:text-slate-300">
-                                {customAnalysis}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
+            {/* Custom Prompt Section - Removed as per user request */}
         </div>
       )}
       

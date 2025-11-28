@@ -192,7 +192,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-[1600px] mx-auto space-y-6 md:space-y-8 h-full animate-fade-in">
+    <div className="p-4 md:p-6 max-w-[1600px] mx-auto space-y-6 md:space-y-8 animate-fade-in">
       {/* Header */}
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
         <div>

@@ -84,7 +84,9 @@ function App() {
         {/* View Container */}
         {/* Mobile: pt-16 for top header, pb-20 for bottom nav. Desktop: no padding needed here as layout handles it. */}
         <div className={`flex-1 overflow-y-auto w-full ${showSidebar ? 'pt-16 pb-20 md:pt-0 md:pb-0' : ''}`}>
-          {renderView()}
+          <div className="min-h-full">
+            {renderView()}
+          </div>
         </div>
       </main>
     </div>

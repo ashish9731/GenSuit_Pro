@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Upload, FileText, TrendingUp, TrendingDown, Lightbulb, Target, PieChart as PieIcon, Activity } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Upload, FileText, TrendingUp, TrendingDown, Lightbulb, Target, PieChart as PieIcon, Activity, AlertCircle, Filter, RefreshCw, X } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line, PieChart, Pie, Cell, Legend } from 'recharts';
 import { analyzeSalesData } from '../services/geminiService';
 import { AnalyticsReport } from '../types';
@@ -18,21 +18,113 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
   const [selectedPerson, setSelectedPerson] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string>('');
 
+  // Filtering State
+  const [parsedRows, setParsedRows] = useState<any[]>([]);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [activeFilters, setActiveFilters] = useState<{[key: string]: string}>({});
+  const [availableFilters, setAvailableFilters] = useState<{[key: string]: string[]}>({});
+
+  const parseData = (text: string) => {
+    try {
+        let rows: any[] = [];
+        let detectedHeaders: string[] = [];
+
+        const trimmed = text.trim();
+        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+            // Try JSON
+            try {
+                const json = JSON.parse(trimmed);
+                if (Array.isArray(json)) {
+                    rows = json;
+                } else if (typeof json === 'object') {
+                    // Try to find an array property
+                    const arrayProp = Object.values(json).find(v => Array.isArray(v));
+                    if (arrayProp && Array.isArray(arrayProp)) rows = arrayProp;
+                }
+            } catch (e) { console.error("JSON parse failed", e); }
+        }
+        
+        if (rows.length === 0) {
+            // Try CSV
+            const lines = trimmed.split('\n');
+            if (lines.length > 1) {
+                detectedHeaders = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+                    // Handle quoted commas purely (simple regex) or simple split
+                    const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/^"|"$/g, ''));
+                    const row: any = {};
+                    detectedHeaders.forEach((h, idx) => {
+                        row[h] = values[idx];
+                    });
+                    rows.push(row);
+                }
+            }
+        } else {
+            // If JSON, extract headers from first object
+            if (rows.length > 0) {
+                detectedHeaders = Object.keys(rows[0]);
+            }
+        }
+
+        setHeaders(detectedHeaders);
+        setParsedRows(rows);
+        generateFilterOptions(rows, detectedHeaders);
+        return rows;
+    } catch (e) {
+        console.error("Parsing Error", e);
+        return [];
+    }
+  };
+
+  const generateFilterOptions = (rows: any[], cols: string[]) => {
+      const filters: {[key: string]: Set<string>} = {};
+      
+      cols.forEach(col => {
+          // Heuristic: Only columns with text values and cardinality < 50 are likely good filters
+          // Or if user specifically mentioned names/locations, usually those are strings.
+          const uniqueValues = new Set<string>();
+          let isStringColumn = true;
+
+          for (const row of rows) {
+             const val = row[col];
+             if (typeof val !== 'string' && typeof val !== 'number') continue;
+             uniqueValues.add(String(val));
+             if (uniqueValues.size > 100) break; // Limit cardinality
+          }
+
+          if (uniqueValues.size > 0 && uniqueValues.size < 100) {
+             filters[col] = uniqueValues;
+          }
+      });
+
+      const finalOptions: {[key: string]: string[]} = {};
+      Object.keys(filters).forEach(k => {
+          finalOptions[k] = Array.from(filters[k]).sort();
+      });
+      setAvailableFilters(finalOptions);
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setFileName(file.name);
     setLoading(true);
+    setActiveFilters({}); // Reset filters on new upload
 
     const reader = new FileReader();
     reader.onload = async (event) => {
       const text = event.target?.result as string;
-      onDataLoaded(text);
+      onDataLoaded(text); // Store raw text for Chat
+      
+      // Parse for local filtering
+      parseData(text);
+
+      // Analyze Full Dataset
       try {
-        console.log("Sending data to analyzeSalesData:", text.substring(0, 500) + "..."); // Log first 500 chars
         const report = await analyzeSalesData(text);
-        console.log("Received report from analyzeSalesData:", report);
         setData(report);
       } catch (err) {
         console.error(err);
@@ -44,12 +136,59 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
     reader.readAsText(file);
   };
 
-  const getChartData = () => {
-    if (!data) return [];
-    return data.personnelAnalysis.map(p => ({
-        name: p.name,
-        score: p.performanceScore
-    }));
+  const handleFilterChange = (col: string, val: string) => {
+      const newFilters = { ...activeFilters };
+      if (val === "ALL") {
+          delete newFilters[col];
+      } else {
+          newFilters[col] = val;
+      }
+      setActiveFilters(newFilters);
+      applyAnalysisOnFilteredData(newFilters);
+  };
+
+  const applyAnalysisOnFilteredData = async (currentFilters: {[key: string]: string}) => {
+      setLoading(true);
+      try {
+          // Filter rows
+          const filtered = parsedRows.filter(row => {
+              return Object.entries(currentFilters).every(([key, filterVal]) => {
+                  return String(row[key]) === filterVal;
+              });
+          });
+
+          // Convert back to CSV string for AI
+          if (filtered.length === 0) {
+              alert("No data matches these filters.");
+              setLoading(false);
+              return;
+          }
+
+          let dataString = "";
+          // If headers exist, map nicely
+          if (headers.length > 0) {
+              dataString += headers.join(",") + "\n";
+              filtered.forEach(row => {
+                  dataString += headers.map(h => `"${row[h] || ''}"`).join(",") + "\n";
+              });
+          } else {
+             dataString = JSON.stringify(filtered);
+          }
+
+          const report = await analyzeSalesData(dataString);
+          setData(report);
+
+      } catch (e) {
+          console.error("Filter analysis failed", e);
+      } finally {
+          setLoading(false);
+      }
+  };
+
+  const clearFilters = () => {
+      setActiveFilters({});
+      // Re-run analysis on full parsedRows
+      applyAnalysisOnFilteredData({});
   };
 
   return (
@@ -59,9 +198,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
         <div>
             <h2 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Activity className="text-indigo-600" />
-                Analyse Data
+                Data Intelligence
             </h2>
-            <p className="text-sm md:text-base text-slate-500 dark:text-slate-400 mt-1">Upload raw data to generate boardroom-ready insights.</p>
+            <p className="text-sm md:text-base text-slate-500 dark:text-slate-400 mt-1">Upload raw data (CSV/JSON) to generate boardroom-ready insights.</p>
         </div>
         <div className="w-full md:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
             {fileName && (
@@ -89,9 +228,45 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
             </div>
             <div className="text-center">
                 <p className="text-lg font-bold text-slate-800 dark:text-white">Analyzing Dataset...</p>
-                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Identifying trends, outliers, and opportunities.</p>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">AI is processing your specific view.</p>
             </div>
         </div>
+      )}
+
+      {/* Filters Bar */}
+      {!loading && fileName && Object.keys(availableFilters).length > 0 && (
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row gap-4 items-start sm:items-center overflow-x-auto">
+              <div className="flex items-center gap-2 text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex-shrink-0">
+                  <Filter size={16} /> Filters:
+              </div>
+              <div className="flex gap-3 flex-wrap flex-1">
+                  {Object.entries(availableFilters).map(([col, options]) => (
+                      <div key={col} className="relative group">
+                          <select 
+                              value={activeFilters[col] || "ALL"}
+                              onChange={(e) => handleFilterChange(col, e.target.value)}
+                              className="appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium py-2 pl-3 pr-8 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors min-w-[120px]"
+                          >
+                              <option value="ALL">{col}: All</option>
+                              {options.map(opt => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                          </select>
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                              <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                          </div>
+                      </div>
+                  ))}
+                  {Object.keys(activeFilters).length > 0 && (
+                      <button 
+                        onClick={clearFilters}
+                        className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 font-bold px-3 py-2 bg-red-50 dark:bg-red-900/10 rounded-lg transition-colors"
+                      >
+                          <X size={14} /> Clear
+                      </button>
+                  )}
+              </div>
+          </div>
       )}
 
       {/* Empty State */}
@@ -156,9 +331,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
                     <div className="p-6 md:p-8 flex-1 bg-slate-50/30 dark:bg-slate-800/20">
                          <div className="prose prose-slate dark:prose-invert max-w-none">
                              <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-lg">
-                                {activeTab === 'daily' && data.dailySummary ? data.dailySummary : 
-                                 activeTab === 'weekly' && data.weeklySummary ? data.weeklySummary : 
-                                 data.monthlySummary || "No summary available"}
+                                {activeTab === 'daily' ? data.dailySummary : 
+                                 activeTab === 'weekly' ? data.weeklySummary : 
+                                 data.monthlySummary}
                              </p>
                          </div>
                     </div>
@@ -166,7 +341,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
                          <div className="px-6 py-4 bg-indigo-50 dark:bg-indigo-900/20 border-t border-indigo-100 dark:border-indigo-800/30 flex items-start gap-3">
                              <Target className="w-5 h-5 text-indigo-600 dark:text-indigo-400 mt-0.5 flex-shrink-0" />
                              <div>
-                                 <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase">AI Forecast</span>
+                                 <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase">Forecast</span>
                                  <p className="text-sm font-medium text-slate-800 dark:text-indigo-100">{data.forecast}</p>
                              </div>
                          </div>
@@ -199,68 +374,82 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
                  {/* Revenue Trend Line Chart */}
                  <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
-                        <TrendingUp className="text-emerald-500 w-5 h-5"/> Revenue Trend
+                        <TrendingUp className="text-emerald-500 w-5 h-5"/> Trend Analysis
                     </h3>
                     <div className="h-64 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={data.revenueTrend}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? '#334155' : '#f0f0f0'} />
-                                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: isDarkMode ? '#94a3b8' : '#9ca3af', fontSize: 10}} dy={10} />
-                                <YAxis axisLine={false} tickLine={false} tick={{fill: isDarkMode ? '#94a3b8' : '#9ca3af', fontSize: 10}} />
-                                <Tooltip 
-                                    contentStyle={{
-                                        backgroundColor: isDarkMode ? '#1e293b' : '#fff',
-                                        borderRadius: '12px', 
-                                        border: 'none', 
-                                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                                        color: isDarkMode ? '#fff' : '#000'
-                                    }} 
-                                />
-                                <Line type="monotone" dataKey="value" stroke="#4f46e5" strokeWidth={3} dot={{r: 4, fill: '#4f46e5'}} activeDot={{r: 6}} />
-                            </LineChart>
-                        </ResponsiveContainer>
+                        {data.revenueTrend && data.revenueTrend.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={data.revenueTrend}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? '#334155' : '#f0f0f0'} />
+                                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: isDarkMode ? '#94a3b8' : '#9ca3af', fontSize: 10}} dy={10} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{fill: isDarkMode ? '#94a3b8' : '#9ca3af', fontSize: 10}} />
+                                    <Tooltip 
+                                        contentStyle={{
+                                            backgroundColor: isDarkMode ? '#1e293b' : '#fff',
+                                            borderRadius: '12px', 
+                                            border: 'none', 
+                                            boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                                            color: isDarkMode ? '#fff' : '#000'
+                                        }} 
+                                    />
+                                    <Line type="monotone" dataKey="value" stroke="#4f46e5" strokeWidth={3} dot={{r: 4, fill: '#4f46e5'}} activeDot={{r: 6}} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-2">
+                                <AlertCircle />
+                                <span className="text-sm">No trend data found in this dataset</span>
+                            </div>
+                        )}
                     </div>
                  </div>
 
                  {/* Product Distribution Pie Chart */}
                  <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
-                        <PieIcon className="text-purple-500 w-5 h-5"/> Segment Distribution
+                        <PieIcon className="text-purple-500 w-5 h-5"/> Distribution
                     </h3>
                     <div className="h-64 w-full flex items-center justify-center">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={data.productDistribution}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={80}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {data.productDistribution.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip 
-                                     contentStyle={{
-                                        backgroundColor: isDarkMode ? '#1e293b' : '#fff',
-                                        borderRadius: '12px', 
-                                        border: 'none', 
-                                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                                        color: isDarkMode ? '#fff' : '#000'
-                                    }} 
-                                />
-                                <Legend 
-                                    verticalAlign="middle" 
-                                    align="right" 
-                                    layout="vertical"
-                                    iconType="circle"
-                                    wrapperStyle={{ fontSize: '12px', color: isDarkMode ? '#94a3b8' : '#64748b' }}
-                                />
-                            </PieChart>
-                        </ResponsiveContainer>
+                        {data.productDistribution && data.productDistribution.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={data.productDistribution}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={60}
+                                        outerRadius={80}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                    >
+                                        {data.productDistribution.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip 
+                                        contentStyle={{
+                                            backgroundColor: isDarkMode ? '#1e293b' : '#fff',
+                                            borderRadius: '12px', 
+                                            border: 'none', 
+                                            boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                                            color: isDarkMode ? '#fff' : '#000'
+                                        }} 
+                                    />
+                                    <Legend 
+                                        verticalAlign="middle" 
+                                        align="right" 
+                                        layout="vertical"
+                                        iconType="circle"
+                                        wrapperStyle={{ fontSize: '12px', color: isDarkMode ? '#94a3b8' : '#64748b' }}
+                                    />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        ) : (
+                             <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-2">
+                                <AlertCircle />
+                                <span className="text-sm">No categorical data found</span>
+                            </div>
+                        )}
                     </div>
                  </div>
             </div>
@@ -268,18 +457,17 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
             {/* Detailed Personnel Table */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden flex flex-col">
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800">
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Team Performance Matrix</h3>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Performance Analysis (Entities)</h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Tap a row to view the AI-generated Action Plan.</p>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse min-w-[800px]">
                         <thead className="bg-slate-50 dark:bg-slate-800/50">
                             <tr>
-                                {data.personnelAnalysis.length > 0 && Object.keys(data.personnelAnalysis[0]).map((key) => (
-                                    <th key={key} className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                        {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                                    </th>
-                                ))}
+                                <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Entity / Name</th>
+                                <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Primary Metric</th>
+                                <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Count / Vol</th>
+                                <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Score</th>
                                 <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-right">Action</th>
                             </tr>
                         </thead>
@@ -294,28 +482,23 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
                                             : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
                                         }`}
                                     >
-                                        {Object.entries(person).map(([key, value]) => (
-                                            <td key={key} className="p-4 font-medium text-slate-600 dark:text-slate-300">
-                                                {key === 'performanceScore' ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-24 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                                            <div 
-                                                                className={`h-full rounded-full ${
-                                                                    Number(value) >= 80 ? 'bg-emerald-500' :
-                                                                    Number(value) >= 60 ? 'bg-amber-500' : 'bg-red-500'
-                                                                }`} 
-                                                                style={{ width: `${Number(value)}%` }}
-                                                            ></div>
-                                                        </div>
-                                                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400">{value}</span>
-                                                    </div>
-                                                ) : (
-                                                    <span className={key === 'name' ? 'font-bold text-slate-800 dark:text-white' : ''}>
-                                                        {String(value)}
-                                                    </span>
-                                                )}
-                                            </td>
-                                        ))}
+                                        <td className="p-4 font-bold text-slate-800 dark:text-white">{person.name}</td>
+                                        <td className="p-4 font-medium text-slate-600 dark:text-slate-300 font-mono">{person.revenueGenerated}</td>
+                                        <td className="p-4 font-medium text-slate-600 dark:text-slate-300">{person.salesCount}</td>
+                                        <td className="p-4">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-24 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className={`h-full rounded-full ${
+                                                            person.performanceScore >= 80 ? 'bg-emerald-500' :
+                                                            person.performanceScore >= 60 ? 'bg-amber-500' : 'bg-red-500'
+                                                        }`} 
+                                                        style={{ width: `${person.performanceScore}%` }}
+                                                    ></div>
+                                                </div>
+                                                <span className="text-xs font-bold text-slate-600 dark:text-slate-400">{person.performanceScore}</span>
+                                            </div>
+                                        </td>
                                         <td className="p-4 text-right">
                                             <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase">
                                                 {selectedPerson === person.name ? 'Close' : 'View Plan'}
@@ -324,21 +507,21 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
                                     </tr>
                                     {selectedPerson === person.name && (
                                         <tr className="bg-indigo-50/50 dark:bg-indigo-900/5 animate-in fade-in slide-in-from-top-2">
-                                            <td colSpan={Object.keys(person).length + 1} className="p-6">
+                                            <td colSpan={5} className="p-6">
                                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                                     <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-indigo-100 dark:border-slate-700 shadow-sm">
                                                         <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-2 block">Key Strength</span>
-                                                        <p className="text-slate-700 dark:text-slate-300 text-sm">{person.keyStrength || 'Not available'}</p>
+                                                        <p className="text-slate-700 dark:text-slate-300 text-sm">{person.keyStrength}</p>
                                                     </div>
                                                     <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-indigo-100 dark:border-slate-700 shadow-sm">
                                                         <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide mb-2 block">Area for Improvement</span>
-                                                        <p className="text-slate-700 dark:text-slate-300 text-sm">{person.areaForImprovement || 'Not available'}</p>
+                                                        <p className="text-slate-700 dark:text-slate-300 text-sm">{person.areaForImprovement}</p>
                                                     </div>
                                                     <div className="bg-indigo-600 p-4 rounded-xl shadow-md text-white">
                                                         <span className="text-xs font-bold text-indigo-200 uppercase tracking-wide mb-2 block flex items-center gap-1">
                                                             <Target size={12}/> Recommended Action Plan
                                                         </span>
-                                                        <p className="text-sm font-medium leading-relaxed">{person.actionPlan || 'No action plan available'}</p>
+                                                        <p className="text-sm font-medium leading-relaxed">{person.actionPlan}</p>
                                                     </div>
                                                 </div>
                                             </td>

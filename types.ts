@@ -1,6 +1,6 @@
+
 export enum AppView {
   HOME = 'HOME',
-  AUTH = 'AUTH',
   EMAIL_DRAFTER = 'EMAIL_DRAFTER',
   ANALYTICS = 'ANALYTICS',
   DOC_CHAT = 'DOC_CHAT',

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Home } from './views/Home';
@@ -5,15 +6,11 @@ import { EmailDrafter } from './views/EmailDrafter';
 import { AnalyticsDashboard } from './views/AnalyticsDashboard';
 import { DocChat } from './views/DocChat';
 import { LearningHub } from './views/LearningHub';
-import { Auth } from './views/Auth';
-import { AppView, User } from './types';
-import { auth, onAuthStateChanged, signOut, FirebaseUser } from './services/firebase';
+import { AppView } from './types';
 
 function App() {
   const [currentView, setCurrentView] = useState<AppView>(AppView.HOME);
   const [uploadedDataContext, setUploadedDataContext] = useState<string>('');
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
   
   // Theme State
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -23,33 +20,6 @@ function App() {
     }
     return false;
   });
-
-  // Auth Listener
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
-      if (firebaseUser) {
-        setUser({
-          uid: firebaseUser.uid,
-          name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-          email: firebaseUser.email || '',
-          photoURL: firebaseUser.photoURL || undefined
-        });
-        // If user is on Home or Auth page, redirect to App
-        if (currentView === AppView.AUTH) {
-            setCurrentView(AppView.EMAIL_DRAFTER);
-        }
-      } else {
-        setUser(null);
-        // If user logs out, redirect to Home
-        if (currentView !== AppView.HOME && currentView !== AppView.AUTH) {
-            setCurrentView(AppView.HOME);
-        }
-      }
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [currentView]);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -63,21 +33,8 @@ function App() {
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
-  const handleLogout = async () => {
-    try {
-        await signOut(auth);
-        setCurrentView(AppView.HOME);
-    } catch (error) {
-        console.error("Logout failed", error);
-    }
-  };
-
   const handleLaunch = () => {
-    if (user) {
-      setCurrentView(AppView.EMAIL_DRAFTER);
-    } else {
-      setCurrentView(AppView.AUTH);
-    }
+    setCurrentView(AppView.EMAIL_DRAFTER);
   };
 
   const renderView = () => {
@@ -88,8 +45,6 @@ function App() {
             isDarkMode={isDarkMode}
             toggleTheme={toggleTheme}
         />;
-      case AppView.AUTH:
-        return <Auth />;
       case AppView.EMAIL_DRAFTER:
         return <EmailDrafter />;
       case AppView.ANALYTICS:
@@ -108,28 +63,17 @@ function App() {
   };
 
   const isHome = currentView === AppView.HOME;
-  const isAuth = currentView === AppView.AUTH;
-  const showSidebar = !isHome && !isAuth;
-
-  if (loading && !isHome) {
-      return (
-        <div className="h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-            <div className="w-10 h-10 border-4 border-indigo-200 dark:border-indigo-900 border-t-indigo-600 rounded-full animate-spin"></div>
-        </div>
-      );
-  }
+  const showSidebar = !isHome;
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden font-sans transition-colors duration-300">
-      {/* Sidebar handles both Desktop (Side) and Mobile (Bottom) rendering. Hidden on Home and Auth. */}
+      {/* Sidebar handles both Desktop (Side) and Mobile (Bottom) rendering. Hidden on Home. */}
       {showSidebar && (
         <Sidebar 
           currentView={currentView} 
           onChangeView={setCurrentView} 
           isDarkMode={isDarkMode}
           toggleTheme={toggleTheme}
-          user={user}
-          onLogout={handleLogout}
         />
       )}
       

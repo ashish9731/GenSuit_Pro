@@ -1,17 +1,16 @@
+
 import React from 'react';
-import { Mail, BarChart2, MessageSquare, GraduationCap, LayoutGrid, Sun, Moon, Home, LogOut, User as UserIcon } from 'lucide-react';
-import { AppView, User } from '../types';
+import { Mail, BarChart2, MessageSquare, GraduationCap, LayoutGrid, Sun, Moon, Home } from 'lucide-react';
+import { AppView } from '../types';
 
 interface SidebarProps {
   currentView: AppView;
   onChangeView: (view: AppView) => void;
   isDarkMode: boolean;
   toggleTheme: () => void;
-  user?: User | null;
-  onLogout?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isDarkMode, toggleTheme, user, onLogout }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isDarkMode, toggleTheme }) => {
   const navItems = [
     { id: AppView.EMAIL_DRAFTER, label: 'Email', icon: Mail },
     { id: AppView.ANALYTICS, label: 'Analytics', icon: BarChart2 },
@@ -42,11 +41,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isD
              >
                 {isDarkMode ? <Moon size={20} /> : <Sun size={20} />}
              </button>
-             {user && (
-                 <button onClick={onLogout} className="p-2 rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
-                     <LogOut size={20} />
-                 </button>
-             )}
          </div>
       </div>
 
@@ -110,31 +104,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isD
             </nav>
         </div>
 
-        {/* Fixed Footer with User Profile */}
+        {/* Fixed Footer */}
         <div className="p-4 space-y-4 flex-shrink-0 border-t border-slate-100 dark:border-slate-800">
-            {user && (
-                <div className="flex items-center gap-3 px-2 mb-2">
-                    {user.photoURL ? (
-                        <img src={user.photoURL} alt={user.name} className="w-10 h-10 rounded-full object-cover border-2 border-slate-200 dark:border-slate-700" />
-                    ) : (
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg">
-                            {user.name.charAt(0).toUpperCase()}
-                        </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{user.name}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
-                    </div>
-                    <button 
-                        onClick={onLogout}
-                        className="text-slate-400 hover:text-red-500 transition-colors p-1" 
-                        title="Logout"
-                    >
-                        <LogOut size={18} />
-                    </button>
-                </div>
-            )}
-
             {/* Theme Toggle */}
             <button 
                 onClick={toggleTheme}

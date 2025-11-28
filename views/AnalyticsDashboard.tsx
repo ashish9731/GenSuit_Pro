@@ -1,22 +1,30 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Upload, FileText, TrendingUp, TrendingDown, Lightbulb, Target, PieChart as PieIcon, Activity, AlertCircle, Filter, RefreshCw, X } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line, PieChart, Pie, Cell, Legend } from 'recharts';
 import { analyzeSalesData } from '../services/geminiService';
 import { AnalyticsReport } from '../types';
 
 interface AnalyticsDashboardProps {
-  onDataLoaded: (data: string) => void;
+  onDataLoaded: (data: string, fileName?: string) => void;
   isDarkMode: boolean;
+  // Add props to preserve document data when navigating between views
+  preservedDocumentData?: string;
+  preservedFileName?: string;
 }
 
 const COLORS = ['#4f46e5', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'];
 
-export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLoaded, isDarkMode }) => {
+export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ 
+  onDataLoaded, 
+  isDarkMode,
+  preservedDocumentData,
+  preservedFileName
+}) => {
   const [data, setData] = useState<AnalyticsReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
   const [selectedPerson, setSelectedPerson] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string>('');
+  const [fileName, setFileName] = useState<string>(preservedFileName || '');
   const [selectedRow, setSelectedRow] = useState<any | null>(null);
   const [rowAnalysis, setRowAnalysis] = useState<AnalyticsReport | null>(null);
   const [showRowModal, setShowRowModal] = useState(false);
@@ -26,6 +34,16 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
   const [headers, setHeaders] = useState<string[]>([]);
   const [activeFilters, setActiveFilters] = useState<{[key: string]: string}>({});
   const [availableFilters, setAvailableFilters] = useState<{[key: string]: string[]}>({});
+
+  // Initialize with preserved data if available
+  useEffect(() => {
+    if (preservedDocumentData && preservedFileName) {
+      setFileName(preservedFileName);
+      const rows = parseData(preservedDocumentData);
+      // Analyze the preserved data
+      analyzeSalesData(preservedDocumentData).then(setData).catch(console.error);
+    }
+  }, [preservedDocumentData, preservedFileName]);
 
   const parseData = (text: string) => {
     try {
@@ -165,30 +183,32 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setFileName(file.name);
+    const fileName = file.name;
+    setFileName(fileName);
     setLoading(true);
     setActiveFilters({}); // Reset filters on new upload
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const text = event.target?.result as string;
-      onDataLoaded(text); // Store raw text for Chat
-      
-      // Parse for local filtering
-      parseData(text);
-
-      // Analyze Full Dataset
-      try {
-        const report = await analyzeSalesData(text);
-        setData(report);
-      } catch (err) {
-        console.error(err);
-        alert("Error analyzing data. Please ensure it is a valid CSV/JSON text file.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    reader.readAsText(file);
+    // Pass filename to parent component
+    if (onDataLoaded) {
+      // We need to read the file content first to pass it to onDataLoaded
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const text = event.target?.result as string;
+        onDataLoaded(text, fileName); // Pass both data and filename
+        // Continue with parsing and analysis
+        parseData(text);
+        try {
+          const report = await analyzeSalesData(text);
+          setData(report);
+        } catch (err) {
+          console.error(err);
+          alert("Error analyzing data. Please ensure it is a valid CSV/JSON text file.");
+        } finally {
+          setLoading(false);
+        }
+      };
+      reader.readAsText(file);
+    }
   };
 
   const handleFilterChange = (col: string, val: string) => {

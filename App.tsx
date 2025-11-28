@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Home } from './views/Home';
@@ -11,6 +10,7 @@ import { AppView } from './types';
 function App() {
   const [currentView, setCurrentView] = useState<AppView>(AppView.HOME);
   const [uploadedDataContext, setUploadedDataContext] = useState<string>('');
+  const [uploadedFileName, setUploadedFileName] = useState<string>(''); // Track filename
   
   // Theme State
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -37,6 +37,14 @@ function App() {
     setCurrentView(AppView.EMAIL_DRAFTER);
   };
 
+  // Custom handler to set both context and filename
+  const handleDocumentUpload = (data: string, fileName?: string) => {
+    setUploadedDataContext(data);
+    if (fileName) {
+      setUploadedFileName(fileName);
+    }
+  };
+
   const renderView = () => {
     switch (currentView) {
       case AppView.HOME:
@@ -48,7 +56,12 @@ function App() {
       case AppView.EMAIL_DRAFTER:
         return <EmailDrafter />;
       case AppView.ANALYTICS:
-        return <AnalyticsDashboard onDataLoaded={setUploadedDataContext} isDarkMode={isDarkMode} />;
+        return <AnalyticsDashboard 
+          onDataLoaded={handleDocumentUpload} 
+          isDarkMode={isDarkMode} 
+          preservedDocumentData={uploadedDataContext}
+          preservedFileName={uploadedFileName}
+        />;
       case AppView.DOC_CHAT:
         return <DocChat documentContext={uploadedDataContext} />;
       case AppView.LEARNING:

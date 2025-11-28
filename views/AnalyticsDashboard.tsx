@@ -35,6 +35,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const [headers, setHeaders] = useState<string[]>([]);
   const [activeFilters, setActiveFilters] = useState<{[key: string]: string}>({});
   const [availableFilters, setAvailableFilters] = useState<{[key: string]: string[]}>({});
+  const [filteredTableRows, setFilteredTableRows] = useState<any[]>([]);
 
   // Initialize with preserved data if available
   useEffect(() => {
@@ -92,6 +93,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
         setHeaders(detectedHeaders);
         setParsedRows(rows);
+        // Initialize filtered table rows with all data
+        setFilteredTableRows(rows);
         generateFilterOptions(rows, detectedHeaders);
         
         // Automatically generate KPIs based on columns
@@ -402,6 +405,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
           const report = await analyzeSalesData(dataString);
           setData(report);
+          // Also update the table data to show filtered rows
+          setFilteredTableRows(filtered);
 
       } catch (e) {
           console.error("Filter analysis failed", e);
@@ -412,6 +417,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
   const clearFilters = () => {
       setActiveFilters({});
+      // Reset table to show all data
+      setFilteredTableRows(parsedRows);
       // Re-run analysis on full parsedRows
       applyAnalysisOnFilteredData({});
   };
@@ -574,7 +581,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {parsedRows.map((row, rowIndex) => (
+                            {filteredTableRows.map((row, rowIndex) => (
                                 <tr 
                                     key={rowIndex}
                                     onClick={() => analyzeSingleRow(row)}

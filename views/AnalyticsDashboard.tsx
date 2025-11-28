@@ -91,6 +91,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             }
         }
 
+        // Ensure headers are consistent and sorted to prevent ordering issues
+        detectedHeaders = [...detectedHeaders].sort();
+        
         setHeaders(detectedHeaders);
         setParsedRows(rows);
         // Initialize filtered table rows with all data
@@ -137,17 +140,19 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       const numericValues = rows
         .map(row => row[header])
         .map(val => {
-          // Handle different data types
+          // Handle different data types consistently
           if (typeof val === 'number') {
-            return val.toString();
+            return val;
           }
           if (typeof val === 'string') {
-            return val.trim();
+            const trimmed = val.trim();
+            if (trimmed === '') return null;
+            const parsed = parseFloat(trimmed);
+            return isNaN(parsed) || !isFinite(parsed) ? null : parsed;
           }
-          return '';
+          return null;
         })
-        .filter(val => val !== '' && !isNaN(parseFloat(val)) && isFinite(parseFloat(val)))
-        .map(val => parseFloat(val));
+        .filter(val => val !== null) as number[];
       
       // Process if we have any numeric values (even just one is enough to show a KPI)
       if (numericValues.length > 0) {
@@ -156,7 +161,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         const max = Math.max(...numericValues);
         const min = Math.min(...numericValues);
         
-        // Format numbers appropriately
+        // Format numbers appropriately with fixed precision to ensure consistency
         const formatNumber = (num: number): string => {
           // For very large numbers, use compact notation
           if (Math.abs(num) >= 1000000) {
@@ -169,10 +174,10 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           if (Number.isInteger(num)) {
             return num.toLocaleString();
           } 
-          // For decimals, show up to 2 decimal places
+          // For decimals, show exactly 2 decimal places for consistency
           else {
             return num.toLocaleString(undefined, { 
-              minimumFractionDigits: 1, 
+              minimumFractionDigits: 2, 
               maximumFractionDigits: 2 
             });
           }
@@ -461,8 +466,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       // Update table immediately
       setFilteredTableRows(filtered);
       
-      // Generate automatic KPIs for filtered data
-      const automaticKPIs = generateAutomaticKPIs(filtered, headers.length > 0 ? headers : (filtered.length > 0 ? Object.keys(filtered[0] || {}) : []));
+      // Generate automatic KPIs for filtered data using the same headers as the original data
+      const automaticKPIs = generateAutomaticKPIs(filtered, headers);
       setData({
         kpis: automaticKPIs,
         dailySummary: "Analyzing filtered data...",

@@ -156,9 +156,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
                     <div className="p-6 md:p-8 flex-1 bg-slate-50/30 dark:bg-slate-800/20">
                          <div className="prose prose-slate dark:prose-invert max-w-none">
                              <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-lg">
-                                {activeTab === 'daily' ? data.dailySummary : 
-                                 activeTab === 'weekly' ? data.weeklySummary : 
-                                 data.monthlySummary}
+                                {activeTab === 'daily' && data.dailySummary ? data.dailySummary : 
+                                 activeTab === 'weekly' && data.weeklySummary ? data.weeklySummary : 
+                                 data.monthlySummary || "No summary available"}
                              </p>
                          </div>
                     </div>
@@ -275,10 +275,11 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
                     <table className="w-full text-left border-collapse min-w-[800px]">
                         <thead className="bg-slate-50 dark:bg-slate-800/50">
                             <tr>
-                                <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Employee</th>
-                                <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Revenue</th>
-                                <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Sales Count</th>
-                                <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">AI Score</th>
+                                {data.personnelAnalysis.length > 0 && Object.keys(data.personnelAnalysis[0]).map((key) => (
+                                    <th key={key} className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                                    </th>
+                                ))}
                                 <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-right">Action</th>
                             </tr>
                         </thead>
@@ -293,23 +294,28 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
                                             : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
                                         }`}
                                     >
-                                        <td className="p-4 font-bold text-slate-800 dark:text-white">{person.name}</td>
-                                        <td className="p-4 font-medium text-slate-600 dark:text-slate-300 font-mono">{person.revenueGenerated}</td>
-                                        <td className="p-4 font-medium text-slate-600 dark:text-slate-300">{person.salesCount}</td>
-                                        <td className="p-4">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-24 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                                    <div 
-                                                        className={`h-full rounded-full ${
-                                                            person.performanceScore >= 80 ? 'bg-emerald-500' :
-                                                            person.performanceScore >= 60 ? 'bg-amber-500' : 'bg-red-500'
-                                                        }`} 
-                                                        style={{ width: `${person.performanceScore}%` }}
-                                                    ></div>
-                                                </div>
-                                                <span className="text-xs font-bold text-slate-600 dark:text-slate-400">{person.performanceScore}</span>
-                                            </div>
-                                        </td>
+                                        {Object.entries(person).map(([key, value]) => (
+                                            <td key={key} className="p-4 font-medium text-slate-600 dark:text-slate-300">
+                                                {key === 'performanceScore' ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-24 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                            <div 
+                                                                className={`h-full rounded-full ${
+                                                                    Number(value) >= 80 ? 'bg-emerald-500' :
+                                                                    Number(value) >= 60 ? 'bg-amber-500' : 'bg-red-500'
+                                                                }`} 
+                                                                style={{ width: `${Number(value)}%` }}
+                                                            ></div>
+                                                        </div>
+                                                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400">{value}</span>
+                                                    </div>
+                                                ) : (
+                                                    <span className={key === 'name' ? 'font-bold text-slate-800 dark:text-white' : ''}>
+                                                        {String(value)}
+                                                    </span>
+                                                )}
+                                            </td>
+                                        ))}
                                         <td className="p-4 text-right">
                                             <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase">
                                                 {selectedPerson === person.name ? 'Close' : 'View Plan'}
@@ -318,21 +324,21 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
                                     </tr>
                                     {selectedPerson === person.name && (
                                         <tr className="bg-indigo-50/50 dark:bg-indigo-900/5 animate-in fade-in slide-in-from-top-2">
-                                            <td colSpan={5} className="p-6">
+                                            <td colSpan={Object.keys(person).length + 1} className="p-6">
                                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                                     <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-indigo-100 dark:border-slate-700 shadow-sm">
                                                         <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-2 block">Key Strength</span>
-                                                        <p className="text-slate-700 dark:text-slate-300 text-sm">{person.keyStrength}</p>
+                                                        <p className="text-slate-700 dark:text-slate-300 text-sm">{person.keyStrength || 'Not available'}</p>
                                                     </div>
                                                     <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-indigo-100 dark:border-slate-700 shadow-sm">
                                                         <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide mb-2 block">Area for Improvement</span>
-                                                        <p className="text-slate-700 dark:text-slate-300 text-sm">{person.areaForImprovement}</p>
+                                                        <p className="text-slate-700 dark:text-slate-300 text-sm">{person.areaForImprovement || 'Not available'}</p>
                                                     </div>
                                                     <div className="bg-indigo-600 p-4 rounded-xl shadow-md text-white">
                                                         <span className="text-xs font-bold text-indigo-200 uppercase tracking-wide mb-2 block flex items-center gap-1">
                                                             <Target size={12}/> Recommended Action Plan
                                                         </span>
-                                                        <p className="text-sm font-medium leading-relaxed">{person.actionPlan}</p>
+                                                        <p className="text-sm font-medium leading-relaxed">{person.actionPlan || 'No action plan available'}</p>
                                                     </div>
                                                 </div>
                                             </td>

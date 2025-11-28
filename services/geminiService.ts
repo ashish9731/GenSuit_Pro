@@ -1,13 +1,13 @@
-import { GoogleGenerativeAI, Schema, SchemaType, GenerationConfig } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType, Schema } from "@google/generative-ai";
 import { AnalyticsReport } from "../types";
 
-// Updated to use environment variable from Vite
+// Check for API key presence to prevent crashes
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 if (!apiKey) {
-  console.error("Gemini API key is missing. Please set VITE_GEMINI_API_KEY in your .env.local file");
-  throw new Error("Gemini API key is missing. Please set VITE_GEMINI_API_KEY in your .env.local file");
+    console.warn("Gemini API Key is missing. App functions relying on AI will fail.");
 }
-const ai = new GoogleGenerativeAI(apiKey);
+
+const ai = new GoogleGenerativeAI(apiKey || 'DUMMY_KEY_FOR_BUILD');
 
 // --- Email Service ---
 
@@ -169,7 +169,7 @@ export const analyzeSalesData = async (dataSample: string): Promise<AnalyticsRep
   ${dataSample.substring(0, 30000)} 
   `; 
 
-  const config: GenerationConfig = {
+  const config = {
     responseMimeType: "application/json"
   };
 

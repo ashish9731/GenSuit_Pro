@@ -18,6 +18,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
   const [selectedPerson, setSelectedPerson] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string>('');
   const [selectedRow, setSelectedRow] = useState<any | null>(null);
+  const [rowAnalysis, setRowAnalysis] = useState<AnalyticsReport | null>(null);
+  const [showRowModal, setShowRowModal] = useState(false);
 
   // Filtering State
   const [parsedRows, setParsedRows] = useState<any[]>([]);
@@ -261,7 +263,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
           const report = await analyzeSalesData(dataString);
           
           // Show a modal or alert with the analysis
-          alert(`Analysis for selected row:\n\n${report.dailySummary || report.monthlySummary || 'No summary available'}`);
+          setRowAnalysis(report);
+          setShowRowModal(true);
       } catch (e) {
           console.error("Single row analysis failed", e);
           alert("Failed to analyze this row. Please try again.");
@@ -420,10 +423,99 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onDataLo
             </div>
         </div>
       )}
+      
+      {/* Row Analysis Modal */}
+      <RowAnalysisModal 
+        show={showRowModal} 
+        onClose={() => setShowRowModal(false)} 
+        analysis={rowAnalysis} 
+      />
     </div>
   );
 };
 
+export default AnalyticsDashboard;
+
 const BarChart2Icon = ({className}:{className?:string}) => (
     <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
 );
+
+// Row Analysis Modal Component
+const RowAnalysisModal: React.FC<{ 
+  show: boolean; 
+  onClose: () => void; 
+  analysis: AnalyticsReport | null 
+}> = ({ show, onClose, analysis }) => {
+  if (!show || !analysis) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white">Row Analysis</h3>
+          <button 
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+          >
+            <X size={24} />
+          </button>
+        </div>
+        
+        <div className="p-6 space-y-6">
+          {/* KPIs for this row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {analysis.kpis?.map((kpi, idx) => (
+              <div key={idx} className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl">
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{kpi.label}</p>
+                <p className="text-lg font-bold text-slate-900 dark:text-white mt-1">{kpi.value}</p>
+                {kpi.change && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{kpi.change}</p>
+                )}
+              </div>
+            ))}
+          </div>
+          
+          {/* Summary */}
+          <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl">
+            <h4 className="font-bold text-slate-900 dark:text-white mb-2">Summary</h4>
+            <p className="text-slate-700 dark:text-slate-300">
+              {analysis.monthlySummary || analysis.dailySummary || analysis.weeklySummary || 'No summary available'}
+            </p>
+          </div>
+          
+          {/* Recommendations */}
+          {analysis.strategicRecommendations && analysis.strategicRecommendations.length > 0 && (
+            <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl">
+              <h4 className="font-bold text-slate-900 dark:text-white mb-2">Recommendations</h4>
+              <ul className="space-y-2">
+                {analysis.strategicRecommendations.map((rec, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="text-indigo-500 mt-1">•</span>
+                    <span className="text-slate-700 dark:text-slate-300">{rec}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          
+          {/* Forecast */}
+          {analysis.forecast && (
+            <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl">
+              <h4 className="font-bold text-slate-900 dark:text-white mb-2">Forecast</h4>
+              <p className="text-slate-700 dark:text-slate-300">{analysis.forecast}</p>
+            </div>
+          )}
+        </div>
+        
+        <div className="p-6 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

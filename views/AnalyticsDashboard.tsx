@@ -249,20 +249,38 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         
         onDataLoaded(csvContent, fileName);
         const rows = parseData(csvContent);
+        
+        // Show immediate data with automatic KPIs
+        const automaticKPIs = generateAutomaticKPIs(rows, headers.length > 0 ? headers : (rows.length > 0 ? Object.keys(rows[0] || {}) : []));
+        setData({
+          kpis: automaticKPIs,
+          dailySummary: "Analyzing data...",
+          weeklySummary: "Analyzing data...",
+          monthlySummary: "Analyzing data...",
+          strategicRecommendations: [],
+          forecast: "Analyzing data...",
+          revenueTrend: [],
+          productDistribution: [],
+          personnelAnalysis: []
+        });
+        
+        // Then try AI analysis as enhancement
         try {
           const report = await analyzeSalesData(csvContent);
-          // Only use AI-generated KPIs, no fallback to automatic KPIs
-          setData(report);
+          // Only update if AI returned meaningful KPIs
+          if (report.kpis && report.kpis.length > 0) {
+            setData(report);
+          }
         } catch (err) {
           console.error("AI analysis failed:", err);
-          // Show error state instead of fake KPIs
+          // Keep the automatic KPIs, just update the summaries to show AI failed
           setData({
-            kpis: [],
-            dailySummary: "Unable to analyze data with AI. Please try again.",
-            weeklySummary: "Unable to analyze data with AI. Please try again.",
-            monthlySummary: "Unable to analyze data with AI. Please try again.",
+            kpis: automaticKPIs,
+            dailySummary: "Unable to analyze data with AI. Showing data insights only.",
+            weeklySummary: "Unable to analyze data with AI. Showing data insights only.",
+            monthlySummary: "Unable to analyze data with AI. Showing data insights only.",
             strategicRecommendations: [],
-            forecast: "No forecast available",
+            forecast: "AI analysis failed",
             revenueTrend: [],
             productDistribution: [],
             personnelAnalysis: []
@@ -291,20 +309,33 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         
         onDataLoaded(formattedText, fileName);
         parseData(formattedText);
+        
+        // For PDFs, show basic info since we can't generate meaningful KPIs from text
+        setData({
+          kpis: [],
+          dailySummary: "PDF document uploaded. AI analysis in progress...",
+          weeklySummary: "PDF document uploaded. AI analysis in progress...",
+          monthlySummary: "PDF document uploaded. AI analysis in progress...",
+          strategicRecommendations: [],
+          forecast: "PDF analysis in progress...",
+          revenueTrend: [],
+          productDistribution: [],
+          personnelAnalysis: []
+        });
+        
+        // Try AI analysis
         try {
           const report = await analyzeSalesData(formattedText);
-          // For PDFs, only use AI-generated KPIs
           setData(report);
         } catch (err) {
           console.error("AI analysis failed:", err);
-          // Show error state instead of fake KPIs
           setData({
             kpis: [],
-            dailySummary: "Unable to analyze PDF content with AI. Please try again.",
-            weeklySummary: "Unable to analyze PDF content with AI. Please try again.",
-            monthlySummary: "Unable to analyze PDF content with AI. Please try again.",
+            dailySummary: "Unable to analyze PDF content with AI.",
+            weeklySummary: "Unable to analyze PDF content with AI.",
+            monthlySummary: "Unable to analyze PDF content with AI.",
             strategicRecommendations: [],
-            forecast: "No forecast available",
+            forecast: "AI analysis failed",
             revenueTrend: [],
             productDistribution: [],
             personnelAnalysis: []
@@ -317,20 +348,38 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           const text = event.target?.result as string;
           onDataLoaded(text, fileName);
           const rows = parseData(text);
+          
+          // Show immediate data with automatic KPIs
+          const automaticKPIs = generateAutomaticKPIs(rows, headers.length > 0 ? headers : (rows.length > 0 ? Object.keys(rows[0] || {}) : []));
+          setData({
+            kpis: automaticKPIs,
+            dailySummary: "Analyzing data...",
+            weeklySummary: "Analyzing data...",
+            monthlySummary: "Analyzing data...",
+            strategicRecommendations: [],
+            forecast: "Analyzing data...",
+            revenueTrend: [],
+            productDistribution: [],
+            personnelAnalysis: []
+          });
+          
+          // Then try AI analysis as enhancement
           try {
             const report = await analyzeSalesData(text);
-            // Only use AI-generated KPIs, no fallback to automatic KPIs
-            setData(report);
+            // Only update if AI returned meaningful KPIs
+            if (report.kpis && report.kpis.length > 0) {
+              setData(report);
+            }
           } catch (err) {
             console.error("AI analysis failed:", err);
-            // Show error state instead of fake KPIs
+            // Keep the automatic KPIs, just update the summaries to show AI failed
             setData({
-              kpis: [],
-              dailySummary: "Unable to analyze data with AI. Please try again.",
-              weeklySummary: "Unable to analyze data with AI. Please try again.",
-              monthlySummary: "Unable to analyze data with AI. Please try again.",
+              kpis: automaticKPIs,
+              dailySummary: "Unable to analyze data with AI. Showing data insights only.",
+              weeklySummary: "Unable to analyze data with AI. Showing data insights only.",
+              monthlySummary: "Unable to analyze data with AI. Showing data insights only.",
               strategicRecommendations: [],
-              forecast: "No forecast available",
+              forecast: "AI analysis failed",
               revenueTrend: [],
               productDistribution: [],
               personnelAnalysis: []
@@ -362,19 +411,35 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   };
 
   const applyAnalysisOnFilteredData = async (currentFilters: {[key: string]: string}) => {
-      setLoading(true);
-      try {
-          // Filter rows
-          const filtered = parsedRows.filter(row => {
-              return Object.entries(currentFilters).every(([key, filterVal]) => {
-                  return String(row[key]) === filterVal;
-              });
+      // Filter rows immediately
+      const filtered = parsedRows.filter(row => {
+          return Object.entries(currentFilters).every(([key, filterVal]) => {
+              return String(row[key]) === filterVal;
           });
+      });
 
+      // Update table immediately
+      setFilteredTableRows(filtered);
+      
+      // Generate automatic KPIs for filtered data
+      const automaticKPIs = generateAutomaticKPIs(filtered, headers.length > 0 ? headers : (filtered.length > 0 ? Object.keys(filtered[0] || {}) : []));
+      setData({
+        kpis: automaticKPIs,
+        dailySummary: "Analyzing filtered data...",
+        weeklySummary: "Analyzing filtered data...",
+        monthlySummary: "Analyzing filtered data...",
+        strategicRecommendations: [],
+        forecast: "Analyzing filtered data...",
+        revenueTrend: [],
+        productDistribution: [],
+        personnelAnalysis: []
+      });
+
+      // Try AI analysis as enhancement (don't show loading state for this)
+      try {
           // Convert back to CSV string for AI
           if (filtered.length === 0) {
               alert("No data matches these filters.");
-              setLoading(false);
               return;
           }
 
@@ -390,26 +455,24 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           }
 
           const report = await analyzeSalesData(dataString);
-          setData(report);
-          // Also update the table data to show filtered rows
-          setFilteredTableRows(filtered);
-
+          // Only update if AI returned meaningful KPIs
+          if (report.kpis && report.kpis.length > 0) {
+            setData(report);
+          }
       } catch (e) {
           console.error("Filter analysis failed", e);
-          // Show error state instead of fake KPIs
-          setData({
-            kpis: [],
-            dailySummary: "Unable to analyze filtered data with AI. Please try again.",
-            weeklySummary: "Unable to analyze filtered data with AI. Please try again.",
-            monthlySummary: "Unable to analyze filtered data with AI. Please try again.",
+          // Keep the automatic KPIs, just update the summaries to show AI failed
+          setData(prevData => ({
+            kpis: automaticKPIs,
+            dailySummary: "Unable to analyze filtered data with AI. Showing data insights only.",
+            weeklySummary: "Unable to analyze filtered data with AI. Showing data insights only.",
+            monthlySummary: "Unable to analyze filtered data with AI. Showing data insights only.",
             strategicRecommendations: [],
-            forecast: "No forecast available",
+            forecast: "AI analysis failed",
             revenueTrend: [],
             productDistribution: [],
             personnelAnalysis: []
-          });
-      } finally {
-          setLoading(false);
+          }));
       }
   };
 
